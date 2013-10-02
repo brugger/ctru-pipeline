@@ -1,13 +1,13 @@
-package EASIH::Pipeline::Backend::DetachedDummy;
+package CTRU::Pipeline::Backend::DetachedDummy;
 
-use EASIH::Pipeline::Backend;
-use EASIH::Pipeline;
+use CTRU::Pipeline::Backend;
+use CTRU::Pipeline;
 
 use strict;
 use warnings;
 
 
-use base(qw(EASIH::Pipeline::Backend));
+use base(qw(CTRU::Pipeline::Backend));
 
 
 my %stats;
@@ -61,12 +61,12 @@ sub job_status {
   $status =~ s/\r//;
 
 
-  return $EASIH::Pipeline::FINISHED if ( $status eq "Done" );
-  return $EASIH::Pipeline::FAILED   if ( $status eq "Failed" );
-  return $EASIH::Pipeline::RUNNING  if ( $status eq "Running" );
+  return $CTRU::Pipeline::FINISHED if ( $status eq "Done" );
+  return $CTRU::Pipeline::FAILED   if ( $status eq "Failed" );
+  return $CTRU::Pipeline::RUNNING  if ( $status eq "Running" );
     
   
-  return $EASIH::Pipeline::UNKNOWN;
+  return $CTRU::Pipeline::UNKNOWN;
 }
 
 

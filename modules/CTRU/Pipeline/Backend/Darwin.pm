@@ -1,11 +1,11 @@
-package EASIH::Pipeline::Backend::Darwin;
+package CTRU::Pipeline::Backend::Darwin;
 
 use strict;
 use warnings;
 
 
-use EASIH::Pipeline;
-use base(qw(EASIH::Pipeline::Backend));
+use CTRU::Pipeline;
+use base(qw(CTRU::Pipeline::Backend));
 
 
 my %stats;
@@ -28,7 +28,7 @@ sub stats {
 sub submit_job {
   my ($self, $cmd, $limit) = @_;
 
-#  print "-->>> cd $EASIH::Pipeline::cwd; $cmd \n";
+#  print "-->>> cd $CTRU::Pipeline::cwd; $cmd \n";
 
 #  my $tries = 3;
 # RERUN:
@@ -36,7 +36,7 @@ sub submit_job {
   my ($tmp_fh, $tmp_file) = File::Temp::tempfile(DIR => "./tmp" );
   $tmp_file .= ".darwin";
   open (my $qpipe, " | qsub $limit > $tmp_file 2> /dev/null ") || die "Could not open qsub-pipe: $!\n";
-  print $qpipe "cd $EASIH::Pipeline::cwd; $cmd";
+  print $qpipe "cd $CTRU::Pipeline::cwd; $cmd";
   close( $qpipe );
   
 #  print "$cmd \n" if ( $verbose );
@@ -66,7 +66,7 @@ sub submit_job {
 sub job_status {
   my ($self, $job_id) = @_;
 
-  return $EASIH::Pipeline::FAILED if ( $job_id == -100);
+  return $CTRU::Pipeline::FAILED if ( $job_id == -100);
 
   my %res;
   open (my $qspipe, "qstat -f $job_id 2> /dev/null | ") || die "Could not open 'qstat-pipeline': $!\n";
@@ -104,16 +104,16 @@ sub job_status {
 	system "rm -f $path";
       }
 
-      return $EASIH::Pipeline::FINISHED 
+      return $CTRU::Pipeline::FINISHED 
     }
     
-    return $EASIH::Pipeline::FAILED   if ( $res{exit_status} != 0);
+    return $CTRU::Pipeline::FAILED   if ( $res{exit_status} != 0);
   }
 
-  return $EASIH::Pipeline::RUNNING  if ( $res{job_state} && $res{job_state} eq "R");
-  return $EASIH::Pipeline::QUEUEING if ( $res{job_state} && $res{job_state} eq "Q");
+  return $CTRU::Pipeline::RUNNING  if ( $res{job_state} && $res{job_state} eq "R");
+  return $CTRU::Pipeline::QUEUEING if ( $res{job_state} && $res{job_state} eq "Q");
 
-  return $EASIH::Pipeline::UNKNOWN;
+  return $CTRU::Pipeline::UNKNOWN;
 
 }
 

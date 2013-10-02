@@ -1,11 +1,11 @@
-package EASIH::Pipeline::Backend::SGE;
+package CTRU::Pipeline::Backend::SGE;
 
 use strict;
 use warnings;
 
 
-use EASIH::Pipeline;
-use base(qw(EASIH::Pipeline::Backend));
+use CTRU::Pipeline;
+use base(qw(CTRU::Pipeline::Backend));
 
 
 my $project_name = "EPipe";
@@ -45,12 +45,12 @@ sub submit_job {
   $limit = "-l $limit" if ( $limit && $limit ne "");
   $limit ||= "";
 
-  print "--]] $cmd ( $limit )\n";
+  $CTRU::Pipeline::logger->debug("--]] $cmd ( $limit )\n");
 
   my ($tmp_fh, $tmp_file) = File::Temp::tempfile(DIR => "./tmp" );
   $tmp_file .= ".sge";
   open (my $qpipe, " | qsub -cwd -S /bin/sh $limit -N $project_name > $tmp_file 2> /dev/null ") || die "Could not open qsub-pipe: $!\n";
-  print $qpipe "cd $EASIH::Pipeline::cwd; $cmd";
+  print $qpipe "cd $CTRU::Pipeline::cwd; $cmd";
   close( $qpipe );
   
 #  print "$cmd \n" if ( $verbose );
@@ -84,7 +84,7 @@ sub job_status {
 
 #  print "$job_id\n";
 
-  return $EASIH::Pipeline::FAILED if ( $job_id == -100);
+  return $CTRU::Pipeline::FAILED if ( $job_id == -100);
   
   use XML::Simple;
 
@@ -152,17 +152,17 @@ sub job_status {
       }
 
 #      print "successfully\n";
-      return $EASIH::Pipeline::FINISHED 
+      return $CTRU::Pipeline::FINISHED 
     }
 #    print "and failed\n";
     
-    return $EASIH::Pipeline::FAILED   if ( $res{exit_status} != 0);
+    return $CTRU::Pipeline::FAILED   if ( $res{exit_status} != 0);
   }
 
-  return $EASIH::Pipeline::RUNNING  if ( $res{job_state} && $res{job_state} eq "r");
-  return $EASIH::Pipeline::QUEUEING if ( $res{job_state} && ($res{job_state} =~/q/ || $res{job_state} =~/w/));
+  return $CTRU::Pipeline::RUNNING  if ( $res{job_state} && $res{job_state} eq "r");
+  return $CTRU::Pipeline::QUEUEING if ( $res{job_state} && ($res{job_state} =~/q/ || $res{job_state} =~/w/));
 
-  return $EASIH::Pipeline::UNKNOWN;
+  return $CTRU::Pipeline::UNKNOWN;
 }
 
 

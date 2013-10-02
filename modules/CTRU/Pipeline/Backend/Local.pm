@@ -1,7 +1,7 @@
-package EASIH::Pipeline::Backend::Local;
+package CTRU::Pipeline::Backend::Local;
 
-use EASIH::Pipeline::Backend;
-use EASIH::Pipeline;
+use CTRU::Pipeline::Backend;
+use CTRU::Pipeline;
 
 use strict;
 use warnings;
@@ -12,7 +12,7 @@ use Time::HiRes;
 our %stats;
 
 
-use base qw(EASIH::Pipeline::Backend);
+use base qw(CTRU::Pipeline::Backend);
 
 
 my $max_jobs = 8;
@@ -39,7 +39,7 @@ sub stats {
 sub submit_job {
   my ($self, $cmd, $limit) = @_;
   
-  print "-->> $cmd\n";
+  $CTRU::Pipeline::logger->debug("$cmd\n");
 
   my $cpid = create_child( $cmd );
 
@@ -61,14 +61,14 @@ sub job_status {
   my $kid = waitpid($job_id, WNOHANG);
   my $status = $? ;
 
-  print "$job_id $kid == $status\n";
+    $CTRU::Pipeline::logger->debug("$job_id $kid == $status\n");
 
-  return $EASIH::Pipeline::RUNNING  if ( $kid == 0);
+  return $CTRU::Pipeline::RUNNING  if ( $kid == 0);
   $stats{ $kid }{ end } = Time::HiRes::gettimeofday if ( $kid );
-  return $EASIH::Pipeline::FINISHED if ( $status == 0 );
-  return $EASIH::Pipeline::FAILED   if ( $status != 0 );
+  return $CTRU::Pipeline::FINISHED if ( $status == 0 );
+  return $CTRU::Pipeline::FAILED   if ( $status != 0 );
   
-  return $EASIH::Pipeline::UNKNOWN;
+  return $CTRU::Pipeline::UNKNOWN;
 }
 
 

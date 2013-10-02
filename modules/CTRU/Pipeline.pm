@@ -1,4 +1,4 @@
-package EASIH::Pipeline;
+package CTRU::Pipeline;
 # 
 # JobManagementSystem framework for running pipelines everywhere!
 # 
@@ -13,11 +13,11 @@ use File::Temp;
 use Time::HiRes;
 use Carp;
 
-use EASIH::Pipeline::Backend;
+use CTRU::Pipeline::Backend;
+use CTRU::Pipeline::Log;
 
 my $last_save      =   0;
 my $save_interval  = 300;
-my $verbose_level  =   0;
 my $max_retry      =   3;
 my $jobs_submitted =   0;
 my $sleep_time     =   5;
@@ -31,9 +31,10 @@ my $freeze_file;
 my $no_restart     =   0; # failed jobs that cannot be restarted. 
 my $restarted_run  =   0;
 
-# default dummy hive that will fail gracefully, and the class that every other hive
+# default dummy backend/logger that will fail gracefully, and the class that every other backend
 # should inherit from.
-my $backend           = "EASIH::Pipeline::Backend";
+my $backend           = "CTRU::Pipeline::Backend";
+our $logger           = "CTRU::Pipeline::Log";
 
 my ($start_time, $end_time);
 my @delete_files;
@@ -138,14 +139,6 @@ sub add_merge_step {
 
 
 
-# 
-# 
-# 
-# Kim Brugger (23 Apr 2010)
-sub verbosity {
-  $verbose_level = shift || 0;
-}
-
 
 
 # 
@@ -156,20 +149,6 @@ sub args {
   return join(" ", @argv) . "\n";
 }
 
-
-# 
-# 
-# 
-# Kim Brugger (05 Jul 2010)
-sub verbose {
-  my ( $message, $level) = @_;
-  $level ||= 0;
- 
-  return if ( $level > $verbose_level);
-  $message =~ s/\n\z//g;
-  print STDERR  " ::::" . " $message\n";
-
-}
 
 
 
@@ -190,7 +169,7 @@ sub no_store {
 sub fail {
   my ($message ) = @_;
 
-  print STDERR "ERROR :: $message\n";
+  $logger->error($message);
   store_state();
   exit;
   
@@ -207,37 +186,27 @@ sub backend {
   
   if ( $backend ) {
     # strip away the the expected class
-    $backend =~ s/EASIH::Pipeline::Backend:://;
+    $backend =~ s/CTRU::Pipeline::Backend:://;
     # and (re)append it (again);
-    $backend = "EASIH::Pipeline::Backend::".$backend;
+    $backend = "CTRU::Pipeline::Backend::".$backend;
   }
 
   return $backend;
 }
 
 
-# 
-# 
-# 
-# Kim Brugger (24 Jun 2010)
-sub hive {
-  $backend = shift;
 
-  print "\n :::: Hive has been replaced with Backend, please change your script ::::";
-  print "\n :::: This function will be removed soon.                            ::::\n\n";
+
+# 
+# 
+# 
+# Kim Brugger (02 Oct 2013)
+sub logger {
+  $logger = shift;
   
-  if ( $backend ) {
-    # strip away the the expected class
-    $backend =~ s/EASIH::Pipeline::Backend:://;
-    $backend =~ s/EASIH::Pipeline::Hive:://;
-    # a renaming of one of the backend modules...
-    $backend = "Local" if ( $backend eq "Kluster");
-    # and (re)append it (again);
-    $backend = "EASIH::Pipeline::Backend::".$backend;
-  }
-
-  return $backend;
+  return $logger;
 }
+
 
 
 # 
@@ -266,7 +235,7 @@ sub save_interval {
 sub version {
 
 
-  my $libdir = $INC{ 'EASIH/Pipeline.pm'};
+  my $libdir = $INC{ 'CTRU/Pipeline.pm'};
 
   my $VERSION   = "unknown";
 
@@ -345,13 +314,13 @@ sub submit_job {
   if (@retained_jobs && $max_jobs > 0 && $max_jobs > $jobs_submitted) {
     push @retained_jobs, [ $cmd, $output, $limit, $system, $current_logic_name];
     my $params = shift @retained_jobs;
-    verbose("Queued/unqueued a job ( ". @retained_jobs . " jobs retained)\n", 20);
+    $logger->debug("Queued/unqueued a job ( ". @retained_jobs . " jobs retained)\n");
     ($cmd, $output, $current_logic_name)= (@$params);
-    verbose(" PARAMS :::     ($cmd, $output, $current_logic_name) \n", 20);
+    $logger->debug(" PARAMS :::     ($cmd, $output, $current_logic_name) \n");
   }
   elsif ($max_jobs > 0 && $max_jobs <= $jobs_submitted ) {
     push @retained_jobs, [ $cmd, $output, $limit, $system, $current_logic_name];
-    verbose("Retained a job ( ". @retained_jobs . " jobs retained)\n", 20);
+    $logger->debug("Retained a job ( ". @retained_jobs . " jobs retained)\n");
     return;
   };
 
@@ -372,7 +341,7 @@ sub submit_job {
       $$instance{ status } = $FINISHED;
     }
     else {
-      verbose("$@\n", 1);
+      $logger->info("$@\n");
       $$instance{ status } = $FAILED;
     }
   }
@@ -829,11 +798,11 @@ sub check_jobs {
       $jobs_submitted--;
       $jms_hash{ $jms_id }{ failed }++;
       if ( $jms_hash{ $jms_id }{ failed } < $max_retry ) {
-	verbose("Failed, resubmitting job\n", 3);
+	$logger->warn("Failed, resubmitting job\n");
 	resubmit_job( $jms_id );
       }
       else { 
-	verbose("Cannot resubmit job ($jms_hash{ $jms_id }{ failed } < $max_retry)\n", 3);
+	$logger->warn("Cannot resubmit job ($jms_hash{ $jms_id }{ failed } < $max_retry)\n");
 	$no_restart++;
       }
     }
@@ -858,7 +827,7 @@ sub hard_reset {
   my ( $freezefile ) = @_;
 
   if ( ! $freezefile || ! -e $freezefile) {
-    print "Cannot do a hard-reset without a freezefile\n";
+    $logger->fail( "Cannot do a hard-reset without a freezefile\n");
     exit 1;
   }
 
@@ -891,12 +860,12 @@ sub hard_reset {
 	  }
 	  
 	}
-	print "Resubmitted $pre_jms_id after hard reset downstream (due to $jms_id)\n";
+	$logger->info( "Resubmitted $pre_jms_id after hard reset downstream (due to $jms_id)\n");
 	resubmit_job( $pre_jms_id );
       }
     }
     elsif (! $jms_hash{ $jms_id }{ post_jms_id }) {
-      print "Tracking $jms_id\n";
+      $logger->debug("Tracking $jms_id\n");
       $jms_hash{ $jms_id }{ tracking } = 1;
       next;
     }
@@ -914,7 +883,7 @@ sub reset {
   my ( $freezefile ) = @_;
 
   if ( ! $freezefile || ! -e $freezefile) {
-    print "Cannot do a reset without a freezefile\n";
+    $logger->fail("Cannot do a reset without a freezefile\n");
     exit 1;
   }
 
@@ -933,11 +902,11 @@ sub reset {
 	 $jms_hash{ $jms_id }{ status } == $UNKNOWN || 
 	 $jms_hash{ $jms_id }{ status } == $KILLED ) {
 
-      verbose("Resubmitted $jms_id\n", 10);
+      $logger->info("Resubmitted $jms_id\n");
       resubmit_job( $jms_id );
     }
     elsif (! $jms_hash{ $jms_id }{ post_jms_id }) {
-      verbose( "Tracking $jms_id\n", 10);
+      $logger->debug("Tracking $jms_id\n");
       #$jms_hash{ $jms_id }{ tracking } = 1;
       next;
     }
@@ -1101,7 +1070,7 @@ sub waiting_for_analysis {
   map { $done{ $_ }++ } @done_analyses;
   foreach my $dependency ( @{$dependencies{ $logic_name }} ) {
     if ( ! $done{ $dependency} ) {
-      verbose("$logic_name is waiting for $dependency\n", 10);
+      $logger->debug("$logic_name is waiting for $dependency\n");
       return 1;
     }
   }
@@ -1250,7 +1219,7 @@ sub run {
 		}
 		
 		
-		verbose(" $jms_id :: $jms_hash{ $jms_id }{ logic_name }  --> $next_logic_name (synced !!!) $no_restart\n", 2);
+		$logger->debug(" $jms_id :: $jms_hash{ $jms_id }{ logic_name }  --> $next_logic_name (synced !!!) $no_restart\n");
 		#print "inputs: " . Dumper( \@inputs );
 
 		run_analysis( $next_logic_name, \@jms_ids, \@inputs);
@@ -1260,7 +1229,7 @@ sub run {
 	    }
 	    # unsynced part of the pipeline, run the next job.
 	    else {
-	      verbose(" $jms_id :: $jms_hash{ $jms_id }{ logic_name }  --> $next_logic_name  \n", 2);
+	      $logger->debug(" $jms_id :: $jms_hash{ $jms_id }{ logic_name }  --> $next_logic_name  \n");
 	      run_analysis( $next_logic_name, [$jms_id], $jms_hash{ $jms_id }{ output });
 	      $started++;
 	    }
@@ -1297,11 +1266,11 @@ sub run {
   print real_runtime();
 
   if ( $no_restart ) {
-    print "The pipeline was unsucessful with $no_restart job(s) not being able to finish\n";
+    $logger->warn("The pipeline was unsucessful with $no_restart job(s) not being able to finish\n");
   }
   
 
-  verbose( "Retaineded jobs: ". @retained_jobs . " (should be 0)\n", 5);
+  $logger->warn("Retaineded jobs: ". @retained_jobs . " (should be 0)\n") if ( @retained_jobs != 0);
   $end_time = Time::HiRes::gettimeofday();
   store_state();
 
@@ -1388,7 +1357,11 @@ sub print_flow {
 
   @start_logic_names = @start_steps if ( !@start_logic_names );
 
-  die "EASIH::Pipeline::print_flow not called with a logic_name\n" if (! @start_logic_names);
+
+  if (! @start_logic_names) {
+    $logger->fail("CTRU::Pipeline::print_flow not called with a logic_name\n");
+    exit -1;
+  }
 
   my @analyses;
 
@@ -1409,7 +1382,8 @@ sub print_flow {
     push @analyses, $current_logic_name;
 
     if ( ! $analysis{$current_logic_name} ) {
-      die "ERROR :::: No information on $current_logic_name in analysis\n";
+      $logger->fatal("No information on $current_logic_name in analysis");
+      exit -1;
     }
     else {
       my $function = function_module($analysis{$current_logic_name}{ function }, $current_logic_name);
@@ -1453,7 +1427,7 @@ sub print_flow {
 sub validate_flow {
   my (@start_logic_names) = @_;
 
-  die "EASIH::Pipeline::validate_flow not called with a logic_name\n" if (! @start_logic_names);
+  die "CTRU::Pipeline::validate_flow not called with a logic_name\n" if (! @start_logic_names);
 
   my @analyses;
 
@@ -1468,7 +1442,8 @@ sub validate_flow {
     push @analyses, $current_logic_name;
 
     if ( ! $analysis{$current_logic_name} ) {
-      die "ERROR :::: No information on $current_logic_name in analysis\n";
+      $logger->fatal("No information on $current_logic_name in analysis\n");
+      exit -1;
     }
     else {
       my $function = function_module($analysis{$current_logic_name}{ function }, $current_logic_name);
@@ -1496,7 +1471,7 @@ sub validate_flow {
 #    print "end of flow\n";
   }
 
-  verbose("\nEnd of validate_run\n", 1);
+  $logger->info("\nEnd of validate_run\n");
   
 }
 
@@ -1513,7 +1488,7 @@ sub store_state {
 
   $filename = freeze_file();
   
-  verbose("EASIH::Pipeline :: Storing state in: '$filename'\n", 2);
+  $logger->info("CTRU::Pipeline :: Storing state in: '$filename'\n");
 
   my $blob = {delete_files       => \@delete_files,
 	      jms_hash           => \%jms_hash,
@@ -1555,7 +1530,7 @@ sub restore_state {
   my ( $filename ) = @_;
 
   
-  verbose("EASIH::Pipeline :: Re-storing state from: '$filename'\n", 2);
+  $logger->info("CTRU::Pipeline :: Re-storing state from: '$filename'\n");
 
   my $blob = Storable::retrieve( $filename);
 
@@ -1581,7 +1556,6 @@ sub restore_state {
   %analysis_order     = %{$$blob{analysis_order}};
   %dependencies       = %{$$blob{dependencies}} if ($$blob{dependencies});
 
-#  hive($$blob{hive}) if ( $$blob{hive} );
   backend($$blob{backend}) if ( $$blob{backend});
   $backend->stats($$blob{stats});
   
