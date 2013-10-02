@@ -8,7 +8,6 @@ use CTRU::Pipeline;
 use base(qw(CTRU::Pipeline::Backend));
 
 
-my $project_name = "EPipe";
 
 my %stats;
 
@@ -23,16 +22,6 @@ sub stats {
 }
 
 
-
-# 
-# 
-# 
-# Kim Brugger (05 Jul 2013)
-sub set_project_name {
-  my ($new_name) = @_;
-  $project_name = $new_name;
-  
-}
 
 
 # 
@@ -49,7 +38,7 @@ sub submit_job {
 
   my ($tmp_fh, $tmp_file) = File::Temp::tempfile(DIR => "./tmp" );
   $tmp_file .= ".sge";
-  open (my $qpipe, " | qsub -cwd -S /bin/sh $limit -N $project_name > $tmp_file 2> /dev/null ") || die "Could not open qsub-pipe: $!\n";
+  open (my $qpipe, " | qsub -cwd -S /bin/sh $limit -N $CTRU::Pipeline::project_name > $tmp_file 2> /dev/null ") || die "Could not open qsub-pipe: $!\n";
   print $qpipe "cd $CTRU::Pipeline::cwd; $cmd";
   close( $qpipe );
   

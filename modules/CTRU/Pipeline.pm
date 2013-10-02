@@ -36,7 +36,7 @@ my $restarted_run  =   0;
 my $backend           = "CTRU::Pipeline::Backend";
 our $logger           = "CTRU::Pipeline::Log";
 
-my $project_name = "EPipe"; # What shows up in qstats
+our $project_name = "EPipe"; # What shows up in qstats
 
 
 my ($start_time, $end_time);
