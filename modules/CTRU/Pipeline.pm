@@ -36,6 +36,9 @@ my $restarted_run  =   0;
 my $backend           = "CTRU::Pipeline::Backend";
 our $logger           = "CTRU::Pipeline::Log";
 
+my $project_name = "EPipe"; # What shows up in qstats
+
+
 my ($start_time, $end_time);
 my @delete_files;
 my %jms_hash;
@@ -47,6 +50,11 @@ my $job_counter = 1; # This is for generating internal jms_id (JobManamentSystem
 
 our $cwd      = `pwd`;
 chomp($cwd);
+
+my $username = scalar getpwuid $<;
+use Sys::Hostname;
+my $host = hostname;
+
 
 my %dependencies;
 
@@ -150,6 +158,16 @@ sub args {
 }
 
 
+
+# 
+# 
+# 
+# Kim Brugger (05 Jul 2013)
+sub set_project_name {
+  my ($new_name) = @_;
+  $project_name = $new_name;
+  
+}
 
 
 # 
@@ -477,8 +495,6 @@ sub freeze_file {
 # Kim Brugger (05 Jul 2010)
 sub get_timestamp {
   
-  use Sys::Hostname;
-  my $host = hostname;
 
   use POSIX 'strftime';
   my $time = strftime('%d/%m/%y %H.%M', localtime);
@@ -1502,6 +1518,13 @@ sub store_state {
 	      job_counter        => $job_counter,
 	      start_time         => $start_time,
 	      end_time           => $end_time,
+
+	      # These are more post-run tracking...
+	      cwd                => $cwd,
+	      start_time         => $start_time,
+	      username           => $username,
+	      host               => $host,
+	      project            => $project_name,
 	      
 	      stats              => $backend->stats,
 	      
