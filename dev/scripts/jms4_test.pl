@@ -11,64 +11,56 @@ use Data::Dumper;
 
 use Getopt::Std;
 
-use lib '/home/kb468/easih-pipeline/modules';
-use EASIH::JMS;
-use EASIH::JMS::Misc;
-#use EASIH::JMS::Samtools;
-#use EASIH::JMS::Picard;
+use lib '/software/packages/ctru-pipeline/modules';
+use CTRU::Pipeline;
+use CTRU::Pipeline::Misc;
+#use CTRU::Pipeline::Samtools;
+#use CTRU::Pipeline::Picard;
 
-my $executer = "/home/kb468/easih-pipeline/dev/dummies/local.pl";
-
-
-
-our %analysis = ('A'   => { function   => 'single'},
-					 
-		 'B'   => { function   => 'single_slow'},
-		 
-		 'C'   => { function   => 'single'},
-		 
-		 'D'   => { function   => 'multiple'},
-
-		 'E'   => { function   => 'multiple'},
-		 
-		 'F'   => { function   => 'single_slow',
-			    sync       => 1},
-		 
-		 'G'   => { function   => 'single',
-			    sync       => 1},
-    );
-		     
+my $executer = "/software/packages/ctru-pipeline/dev/dummies/local.pl";
 
 
-our %flow = ( 'A'      => ['B','C'],
-	      'B'      => ['D','F'],
-	      'C'      => ['E','F'],
-	      'D'      => 'G',
-	      'E'      => 'G',
-	      'F'      => 'G',);
+CTRU::Pipeline::add_start_step('A', 'single');
+CTRU::Pipeline::add_step('A', 'B', 'single_slow');
+CTRU::Pipeline::add_step('B', 'D', 'multiple');
+CTRU::Pipeline::add_step('B', 'F', );
+
+CTRU::Pipeline::add_step('A', 'C', 'single');
+CTRU::Pipeline::add_step('C', 'E', 'multiple');
+CTRU::Pipeline::add_step('C', 'F', 'single_slow');
+
+CTRU::Pipeline::add_step('D', 'G', 'single');
+CTRU::Pipeline::add_merge_step('E', 'G', 'single');
+CTRU::Pipeline::add_merge_step('F', 'G', 'single');
 
 
 my %opts;
 getopts('R:', \%opts);
 
-#EASIH::JMS::no_store();
-#EASIH::JMS::print_flow('fastq-split');
+#CTRU::Pipeline::no_store();
+#CTRU::Pipeline::print_flow('fastq-split');
 
-#EASIH::JMS::backend('Darwin');
-EASIH::JMS::backend('Local');
-EASIH::JMS::backend('SGE');
-EASIH::JMS::max_retry(3);
+#CTRU::Pipeline::backend('Darwin');
+CTRU::Pipeline::backend('Local');
+#CTRU::Pipeline::backend('SGE');
+CTRU::Pipeline::max_retry(3);
+
+use CTRU::Log4Perl;
+CTRU::Pipeline::logger('CTRU::Log4Perl');
+$CTRU::Pipeline::logger->level('warn');
+
+
 
 if ( $opts{R} ) {
-  &EASIH::JMS::reset($opts{R});
-#  &EASIH::JMS::hard_reset( $opts{R} );
-#  &EASIH::JMS::reset();
-  &EASIH::JMS::no_store();
-  EASIH::JMS::run('A');
+  &CTRU::Pipeline::reset($opts{R});
+#  &CTRU::Pipeline::hard_reset( $opts{R} );
+#  &CTRU::Pipeline::reset();
+  &CTRU::Pipeline::no_store();
+  CTRU::Pipeline::run('A');
 }
 else {
-  EASIH::JMS::run('A');
-  EASIH::JMS::store_state();
+  CTRU::Pipeline::run('A');
+  CTRU::Pipeline::store_state();
 }
 
 
@@ -79,7 +71,7 @@ sub multiple {
   my $tmp_file = 'tyt';
   
   for ( my $i=0; $i< 3; $i++ ) {
-    EASIH::JMS::submit_job("$cmd ", $tmp_file);
+    CTRU::Pipeline::submit_job("$cmd ", $tmp_file);
   }
 
 }
@@ -91,10 +83,10 @@ sub multiple_fail {
   my $tmp_file = 'tyt';
   
   for ( my $i=0; $i< 3; $i++ ) {
-    EASIH::JMS::submit_job("$cmd ", $tmp_file);
+    CTRU::Pipeline::submit_job("$cmd ", $tmp_file);
   }
 
-  EASIH::JMS::submit_job("$cmd  ", $tmp_file);
+  CTRU::Pipeline::submit_job("$cmd  ", $tmp_file);
 
 }
 
@@ -104,7 +96,7 @@ sub single {
 
   my $cmd = "$executer ";
   my $tmp_file = 'tyt';
-  EASIH::JMS::submit_job("$cmd ", $tmp_file);
+  CTRU::Pipeline::submit_job("$cmd ", $tmp_file);
 }
 
 sub single_slow {
@@ -112,7 +104,7 @@ sub single_slow {
 
   my $cmd = "$executer -S 60";
   my $tmp_file = 'tyt';
-  EASIH::JMS::submit_job("$cmd ", $tmp_file);
+  CTRU::Pipeline::submit_job("$cmd ", $tmp_file);
 }
 
 
@@ -126,7 +118,7 @@ sub single_fail {
 
   my $cmd = "$executer ";
   my $tmp_file = 'tyt';
-  EASIH::JMS::submit_job("$cmd -F", $tmp_file);
+  CTRU::Pipeline::submit_job("$cmd -F", $tmp_file);
   
 }
 
