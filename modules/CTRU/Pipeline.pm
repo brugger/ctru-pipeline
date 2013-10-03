@@ -16,6 +16,8 @@ use Carp;
 use CTRU::Pipeline::Backend;
 use CTRU::Pipeline::Log;
 
+my $VERSION        = "1.0";
+
 my $last_save      =   0;
 my $save_interval  = 300;
 my $max_retry      =   3;
@@ -255,20 +257,20 @@ sub version {
 
   my $libdir = $INC{ 'CTRU/Pipeline.pm'};
 
-  my $VERSION   = "unknown";
+  my $sha   = "unknown";
 
   if ($libdir && $libdir =~ /.*\//) {
     $libdir =~ s/(.*\/).*/$1/;
-    $VERSION = `cd $libdir; git describe --always --dirty 2> /dev/null`;
+    $sha = `cd $libdir; git describe --always --dirty 2> /dev/null`;
   }
   else {
-    $VERSION = `git describe --always --dirty`;
+    $sha = `git describe --always --dirty`;
   }
-  $VERSION ||= "unknown";
+  $sha ||= "unknown";
 
-  chomp( $VERSION );
+  chomp( $sha );
 
-  return $VERSION;
+  return "$VERSION-$sha";
 }
 
 
