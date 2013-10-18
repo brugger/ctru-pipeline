@@ -48,9 +48,9 @@ sub kill {
 }
 
 sub job_runtime {
-    $CTRU::Pipeline::logger->warn("job_runtime has not been implemented for the backend you are using!\n");
+  $CTRU::Pipeline::logger->warn("job_runtime has not been implemented for the backend you are using!\n");
   return 0;
-
+  
 }
 
 sub job_memory {
@@ -61,7 +61,7 @@ sub job_memory {
 
 
 sub stats {
-    $CTRU::Pipeline::logger->warn("stats has not been implemented for the backend you are using!\n");
+  $CTRU::Pipeline::logger->warn("stats has not been implemented for the backend you are using!\n");
   return 0;
 }
 
