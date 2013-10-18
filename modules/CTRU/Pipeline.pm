@@ -368,7 +368,6 @@ sub submit_job {
   else {
 
     my $job_id = $backend->submit_job( "cd $cwd;$cmd", $limit);
-#    my $job_id = $backend->submit_job( "cd $cwd;$cmd", "-NEP-fqs -l nodes=1:ppn=1,mem=2500mb,walltime=00:59:00");
     
     $$instance{ job_id } = $job_id;
   }    
@@ -390,7 +389,6 @@ sub submit_job {
 # Kim Brugger (26 Apr 2010)
 sub resubmit_job {
   my ( $jms_id ) = @_;
-
 
   my $instance   = $jms_hash{ $jms_id };
   my $logic_name = $$instance{logic_name};
