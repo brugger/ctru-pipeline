@@ -16,7 +16,7 @@ use Carp;
 use CTRU::Pipeline::Backend;
 use CTRU::Pipeline::Log;
 
-my $VERSION        = "1.0";
+my $VERSION        = "1.1";
 
 my $last_save      =   0;
 my $save_interval  = 300;
@@ -60,14 +60,14 @@ my $host = hostname;
 
 my %dependencies;
 
-our $FINISHED    =    1;
-our $FAILED      =    2;
-our $RUNNING     =    3;
-our $QUEUEING    =    4;
-our $RESUBMITTED =    5;
-our $SUBMITTED   =    6;
-our $KILLED      =   99;
-our $UNKNOWN     =  100;
+our $FINISHED    = "".   1;
+our $FAILED      = "".   2;
+our $RUNNING     = "".   3;
+our $QUEUEING    = "".   4;
+our $RESUBMITTED = "".   5;
+our $SUBMITTED   = "".   6;
+our $KILLED      = "".  99;
+our $UNKNOWN     = "". 100;
 
 my %s2status = ( 1   =>  "Finished",
 		 2   =>  "Failed",
@@ -361,7 +361,7 @@ sub submit_job {
       $$instance{ status } = $FINISHED;
     }
     else {
-      $logger->info("$@\n");
+      $logger->debug("$@\n");
       $$instance{ status } = $FAILED;
     }
   }
@@ -372,9 +372,11 @@ sub submit_job {
     $$instance{ job_id } = $job_id;
   }    
 
-  $jms_hash{ $jms_id }  = $instance;
 
-  $jobs_submitted++;      
+  $jms_hash{ $jms_id }  = $instance;
+  $jobs_submitted++;  
+
+  $logger->info( $jms_hash{ $jms_id });
 
   foreach my $pre_jms_id ( @$pre_jms_ids) {
     push @{$jms_hash{ $pre_jms_id }{ post_jms_id }}, $jms_id if ( $pre_jms_id );
@@ -399,6 +401,7 @@ sub resubmit_job {
   $$instance{ status }   = $RESUBMITTED;
   $$instance{ tracking } = 1;
   $jobs_submitted++;      
+
 
 }
 
@@ -809,10 +812,30 @@ sub check_jobs {
     # this should be done with switch, but as we are not on perl 5.10+ this is how it is done...
     if ($status ==  $FINISHED  ) {
       $jobs_submitted--;
+
+      $logger->debug( $jms_hash{ $jms_id });
+
+      $logger->info( { 'type'       => "runtime_stats",
+			'logic_name' => $jms_hash{ $jms_id }{'logic_name'}, 
+			'job_id'     => $jms_hash{ $jms_id }{ 'job_id' }, 
+			"runtime"    => $backend->job_runtime( $jms_hash{ $jms_id }{ 'job_id' } ), 
+			"memory"     => $backend->job_memory( $jms_hash{ $jms_id }{ 'job_id' } ),
+			"status"     => "FINISHED"});
+
+
     }
     elsif ($status == $FAILED ) {
       $jobs_submitted--;
       $jms_hash{ $jms_id }{ failed }++;
+
+      $logger->debug( $jms_hash{ $jms_id });
+      $logger->info( { 'type'       => "runtime_stats",
+		       'logic_name' => $jms_hash{ $jms_id }{'logic_name'}, 
+		       'job_id'     => $jms_hash{ $jms_id }{ 'job_id' }, 
+		       "runtime"    => $backend->job_runtime( $jms_hash{ $jms_id }{ 'job_id' } ), 
+		       "memory"     => $backend->job_memory( $jms_hash{ $jms_id }{ 'job_id' } ),
+		       "status"     => "FAILED"});
+
       if ( $jms_hash{ $jms_id }{ failed } < $max_retry ) {
 	$logger->warn("Failed, resubmitting job\n");
 	resubmit_job( $jms_id );
@@ -876,7 +899,7 @@ sub hard_reset {
 	  }
 	  
 	}
-	$logger->info( "Resubmitted $pre_jms_id after hard reset downstream (due to $jms_id)\n");
+	$logger->debug( "Resubmitted $pre_jms_id after hard reset downstream (due to $jms_id)\n");
 	resubmit_job( $pre_jms_id );
       }
     }
@@ -918,7 +941,7 @@ sub reset {
 	 $jms_hash{ $jms_id }{ status } == $UNKNOWN || 
 	 $jms_hash{ $jms_id }{ status } == $KILLED ) {
 
-      $logger->info("Resubmitted $jms_id\n");
+      $logger->debug("Resubmitted $jms_id\n");
       resubmit_job( $jms_id );
     }
     elsif (! $jms_hash{ $jms_id }{ post_jms_id }) {
@@ -1133,6 +1156,12 @@ sub depends_on_active_jobs {
 sub run {
   my (@start_logic_names) = @_;
 
+  $logger->info( { 'type'     => "pipeline_stats",
+		   'program'  => $0,
+		   'pid'      => $$,
+		   'cwd'      => $cwd,
+		   'status'   => "STARTED"});
+
 
   @start_logic_names = @start_steps if ( ! @start_logic_names );
 
@@ -1289,6 +1318,13 @@ sub run {
   $logger->warn("Retaineded jobs: ". @retained_jobs . " (should be 0)\n") if ( @retained_jobs != 0);
   $end_time = Time::HiRes::gettimeofday();
   store_state();
+
+  $logger->info( { 'type'     => "pipeline_stats",
+		   'program'  => $0,
+		   'pid'      => $$,
+		   'status'   => "FINISHED",
+		   'runtime'  => $end_time - $start_time });
+
 
   return( $no_restart );
 }
@@ -1487,7 +1523,7 @@ sub validate_flow {
 #    print "end of flow\n";
   }
 
-  $logger->info("\nEnd of validate_run\n");
+  $logger->debug("End of validate_run\n");
   
 }
 
@@ -1553,7 +1589,7 @@ sub restore_state {
   my ( $filename ) = @_;
 
   
-  $logger->info("CTRU::Pipeline :: Re-storing state from: '$filename'\n");
+  $logger->debug("CTRU::Pipeline :: Re-storing state from: '$filename'\n");
 
   my $blob = Storable::retrieve( $filename);
 

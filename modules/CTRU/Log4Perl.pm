@@ -8,6 +8,8 @@ use strict;
 use warnings;
 use Data::Dumper;
 use Log::Log4perl qw(:easy);
+use CTRU::Pipeline::Log;
+
 
 our $logger;
 
@@ -74,6 +76,7 @@ sub level {
 # Kim Brugger (02 Oct 2013)
 sub debug {
   my ($self, $message) = @_;
+  $message = CTRU::Pipeline::Log::toString( $message );
   chomp( $message );
   $logger->debug($message);
 }
@@ -85,6 +88,7 @@ sub debug {
 # Kim Brugger (02 Oct 2013)
 sub info {
   my ($self, $message) = @_;
+  $message = CTRU::Pipeline::Log::toString( $message );
   chomp( $message );
   $logger->info($message);
 }
@@ -96,6 +100,7 @@ sub info {
 # Kim Brugger (02 Oct 2013)
 sub warn {
   my ($self, $message) = @_;
+  $message = CTRU::Pipeline::Log::toString( $message );
   chomp( $message );
   $logger->warn($message);
 }
@@ -107,6 +112,7 @@ sub warn {
 # Kim Brugger (02 Oct 2013)
 sub error {
   my ($self, $message) = @_;
+  $message = CTRU::Pipeline::Log::toString( $message );
   chomp( $message );
   $logger->error($message);
 }
@@ -118,6 +124,7 @@ sub error {
 # Kim Brugger (02 Oct 2013)
 sub fatal {
   my ($self, $message) = @_;
+  $message = CTRU::Pipeline::Log::toString( $message );
   chomp( $message );
   $logger->fatal($message);
 }

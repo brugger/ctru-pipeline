@@ -30,9 +30,8 @@ sub submit_job {
 # Kim Brugger (18 May 2010)
 sub job_status {
 
-  $CTRU::Pipeline::logger->fatal("pull_job is not implemented for this Backend\n");
+  $CTRU::Pipeline::logger->info("pull_job is not implemented for this Backend\n");
   exit -1;
- 
 }
 
 
@@ -48,23 +47,22 @@ sub kill {
 }
 
 sub job_runtime {
-  $CTRU::Pipeline::logger->warn("job_runtime has not been implemented for the backend you are using!\n");
+  $CTRU::Pipeline::logger->info("job_runtime has not been implemented for the backend you are using!\n");
   return 0;
   
 }
 
 sub job_memory {
-  $CTRU::Pipeline::logger->warn("job_memory has not been implemented for the backend you are using!\n");
+  $CTRU::Pipeline::logger->info("job_memory has not been implemented for the backend you are using!\n");
   return 0;
 }
 
 
 
 sub stats {
-  $CTRU::Pipeline::logger->warn("stats has not been implemented for the backend you are using!\n");
+  $CTRU::Pipeline::logger->info("stats has not been implemented for the backend you are using!\n");
   return 0;
 }
-
 
 
 1;

@@ -7,6 +7,8 @@ package CTRU::Pipeline::Log;
 use strict;
 use warnings;
 use Data::Dumper;
+use Time::HiRes;
+use POSIX 'strftime';
 
 
 my %l2i = ('debug' => 1,
@@ -26,6 +28,67 @@ my %i2l = ( 1 => 'debug',
 
 my $reporting_level = $l2i{ 'warn' };
 
+my $program;
+my $rundir;
+my $pid = $$;
+
+
+BEGIN {
+
+  $program = $0;
+  $program =~ s/.*\///;
+  $rundir      = `pwd`;
+  chomp($rundir);
+
+}
+
+# 
+# 
+# 
+# Kim Brugger (21 Oct 2013)
+sub toString {
+  my ( $input, $recursive ) = @_;
+
+  $recursive ||= 0;
+  return "" if ( ! $input );
+
+  my $ref_type = ref $input;
+
+  return $input if ( $ref_type eq "");
+
+  if ( $ref_type eq "SCALAR" ) {
+    return $$input;
+  }
+  elsif ( $ref_type eq "ARRAY") {
+    return "[". join(", ", map { toString( $_ ,1) } @$input)."]" if ( $recursive );
+    return  join(", ", map { toString( $_,1 ) } @$input);
+  }
+  elsif ( $ref_type eq "HASH") {
+    return "{".join(", ", map { "$_:'". toString( $$input{$_},1 )."'" } sort keys %$input)."}" if ( $recursive );
+    return join(", ", map { "$_:'". toString( $$input{$_},1 )."'" } sort keys %$input);
+  }
+  elsif ( $ref_type eq "REF") {
+  }
+
+  die "string, hash-, array or stringref expected";
+}
+
+
+
+# 
+# 
+# 
+# Kim Brugger (21 Oct 2013)
+sub meta_message {
+
+  my $now = Time::HiRes::gettimeofday();
+  my $timestamp = strftime('%d/%m/%y %H:%M:%S', localtime);
+
+  return "$timestamp $program [$pid]";
+  
+}
+
+
 
 # 
 # 
@@ -37,13 +100,13 @@ sub level {
   $new_level = lc( $new_level );
 
   if ( ! $l2i{ $new_level } ) {
-    warn("Unknown reporting level, should be one of: debug, info, warn, error or fatal\n");
+    warn($self,"Unknown reporting level, should be one of: debug, info, warn, error or fatal\n");
     return;
   }
   
   $reporting_level = $l2i{ $new_level };
 
-  info("Changed reporting level to: $new_level\n");
+  info($self, "Changed reporting level to: $new_level\n");
 
 }
 
@@ -69,10 +132,10 @@ sub debug {
 
   return if ( $reporting_level > $l2i{ 'debug'});
 
+  $message = toString( $message );
   chomp( $message );
 
-  print "DEBUG :: $message \n";
-  return "DEBUG :: $message \n";
+  print meta_message() . " DEBUG $message\n";
 }
 
 
@@ -83,10 +146,11 @@ sub debug {
 sub info {
   my ($self, $message) = @_;
 
-  return if ( $reporting_level > $l2i{ 'debug'});
+  return if ( $reporting_level > $l2i{ 'info'});
+  $message = toString( $message );
   chomp( $message );
 
-  print "INFO :: $message \n";
+  print meta_message() . " INFO $message\n";
 }
 
 
@@ -98,9 +162,10 @@ sub warn {
   my ($self, $message) = @_;
 
   return if ( $reporting_level > $l2i{ 'warn'});
+  $message = toString( $message );
   chomp( $message );
 
-  print "WARN :: $message \n";
+  print meta_message() . " WARN $message\n";
 }
 
 
@@ -112,9 +177,10 @@ sub error {
   my ($self, $message) = @_;
 
   return if ( $reporting_level > $l2i{ 'error'});
+  $message = toString( $message );
   chomp( $message );
 
-  print STDERR "ERRORs :: $message \n";
+  print STDERR meta_message() . " ERRORs $message\n";
 }
 
 
@@ -126,9 +192,10 @@ sub fatal {
   my ($self, $message) = @_;
 
   return if ( $reporting_level > $l2i{ 'fatal'});
+  $message = toString( $message );
   chomp( $message );
 
-  print STDERR "FATALs :: $message \n";
+  print STDERR meta_message() . "FATALs $message\n";
 }
 
 

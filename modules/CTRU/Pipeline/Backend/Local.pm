@@ -61,7 +61,7 @@ sub job_status {
   my $kid = waitpid($job_id, WNOHANG);
   my $status = $? ;
 
-    $CTRU::Pipeline::logger->debug("$job_id $kid == $status\n");
+  $CTRU::Pipeline::logger->debug("$job_id $kid == $status\n");
 
   return $CTRU::Pipeline::RUNNING  if ( $kid == 0);
   $stats{ $kid }{ end } = Time::HiRes::gettimeofday if ( $kid );
@@ -122,6 +122,7 @@ sub job_runtime {
   return $runtime;
 
   return 0 if ( !$stats{$job_id}{end} || ! $stats{$job_id}{start});
+
   $runtime = $stats{$job_id}{end} - $stats{$job_id}{start};
   return $runtime;
 }

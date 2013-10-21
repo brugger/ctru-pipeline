@@ -45,11 +45,10 @@ CTRU::Pipeline::backend('Local');
 #CTRU::Pipeline::backend('SGE');
 CTRU::Pipeline::max_retry(3);
 
-use CTRU::Log4Perl;
-CTRU::Pipeline::logger('CTRU::Log4Perl');
-$CTRU::Pipeline::logger->level('warn');
-
-
+use lib '/software/packages/ctru-clinical/modules';
+use CTRU::ComplexLog;
+CTRU::Pipeline::logger('CTRU::ComplexLog');
+$CTRU::Pipeline::logger->level('fatal');
 
 if ( $opts{R} ) {
   &CTRU::Pipeline::reset($opts{R});
@@ -62,6 +61,8 @@ else {
   CTRU::Pipeline::run('A');
   CTRU::Pipeline::store_state();
 }
+
+$CTRU::Pipeline::logger->flush_queue();
 
 
 sub multiple {
