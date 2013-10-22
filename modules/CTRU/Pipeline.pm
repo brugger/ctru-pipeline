@@ -816,13 +816,15 @@ sub check_jobs {
       $logger->debug( $jms_hash{ $jms_id });
 
       $logger->info( { 'type'       => "runtime_stats",
-			'logic_name' => $jms_hash{ $jms_id }{'logic_name'}, 
-			'job_id'     => $jms_hash{ $jms_id }{ 'job_id' }, 
-			"runtime"    => $backend->job_runtime( $jms_hash{ $jms_id }{ 'job_id' } ), 
-			"memory"     => $backend->job_memory( $jms_hash{ $jms_id }{ 'job_id' } ),
-			"status"     => "FINISHED"});
-
-
+		       'logic_name' => $jms_hash{ $jms_id }{'logic_name'}, 
+		       'job_id'     => $jms_hash{ $jms_id }{ 'job_id' }, 
+		       "runtime"    => $backend->job_runtime( $jms_hash{ $jms_id }{ 'job_id' } ), 
+		       "memory"     => $backend->job_memory( $jms_hash{ $jms_id }{ 'job_id' } ),
+		       "status"     => "FINISHED",
+		       "command"    => $jms_hash{ $jms_id }{ 'command' },
+		       "output"     => $jms_hash{ $jms_id }{ 'output' },
+		       "limit"      => $jms_hash{ $jms_id }{ 'limit' },
+		     });
     }
     elsif ($status == $FAILED ) {
       $jobs_submitted--;
@@ -834,7 +836,10 @@ sub check_jobs {
 		       'job_id'     => $jms_hash{ $jms_id }{ 'job_id' }, 
 		       "runtime"    => $backend->job_runtime( $jms_hash{ $jms_id }{ 'job_id' } ), 
 		       "memory"     => $backend->job_memory( $jms_hash{ $jms_id }{ 'job_id' } ),
-		       "status"     => "FAILED"});
+		       "status"     => "FAILED"},
+		       "command"    => $jms_hash{ $jms_id }{ 'command' },
+		       "output"     => $jms_hash{ $jms_id }{ 'output' },
+		       "limit"      => $jms_hash{ $jms_id }{ 'limit' },);
 
       if ( $jms_hash{ $jms_id }{ failed } < $max_retry ) {
 	$logger->warn("Failed, resubmitting job\n");
