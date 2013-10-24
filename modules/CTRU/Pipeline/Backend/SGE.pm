@@ -57,6 +57,9 @@ sub submit_job {
   }
   
 #  system "rm $tmp_file" if ( $job_id != -100 );
+
+  $stats{ $job_id }{ start } = Time::HiRes::gettimeofday;
+
   
   return $job_id;
 }
@@ -115,6 +118,9 @@ sub job_status {
 
 
   if (defined $res{'exit_status'}) {
+
+    $stats{ $job_id }{ 'end' } = Time::HiRes::gettimeofday;
+
     $stats{ $job_id }{ 'runtime' } = $res{'ru_wallclock'};
     $stats{ $job_id }{ 'memory' } = $res{'maxvmem'};
     if ($stats{ $job_id }{ 'memory' } =~ /G/) {
