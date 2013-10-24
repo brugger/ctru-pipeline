@@ -376,7 +376,17 @@ sub submit_job {
   $jms_hash{ $jms_id }  = $instance;
   $jobs_submitted++;  
 
-  $logger->info( $jms_hash{ $jms_id });
+  $logger->debug( $jms_hash{ $jms_id } );
+
+  $logger->info( { 'type'       => "runtime_stats",
+		   'logic_name' => $jms_hash{ $jms_id }{ 'logic_name'}, 
+		   'job_id'     => $jms_hash{ $jms_id }{ 'job_id'    }, 
+		   "status"     => "STARTED",
+		   "command"    => $jms_hash{ $jms_id }{ 'command'   },
+		   "output"     => $jms_hash{ $jms_id }{ 'output'    },
+		   "limit"      => $jms_hash{ $jms_id }{ 'limit'     },
+		 });
+
 
   foreach my $pre_jms_id ( @$pre_jms_ids) {
     push @{$jms_hash{ $pre_jms_id }{ post_jms_id }}, $jms_id if ( $pre_jms_id );
@@ -1161,11 +1171,11 @@ sub depends_on_active_jobs {
 sub run {
   my (@start_logic_names) = @_;
 
-  $logger->info( { 'type'     => "pipeline_stats",
-		   'program'  => $0,
-		   'pid'      => $$,
-		   'cwd'      => $cwd,
-		   'status'   => "STARTED"});
+  # $logger->info( { 'type'     => "pipeline_stats",
+  # 		   'program'  => $0,
+  # 		   'pid'      => $$,
+  # 		   'cwd'      => $cwd,
+  # 		   'status'   => "STARTED"});
 
 
   @start_logic_names = @start_steps if ( ! @start_logic_names );
@@ -1324,11 +1334,11 @@ sub run {
   $end_time = Time::HiRes::gettimeofday();
   store_state();
 
-  $logger->info( { 'type'     => "pipeline_stats",
-		   'program'  => $0,
-		   'pid'      => $$,
-		   'status'   => "FINISHED",
-		   'runtime'  => $end_time - $start_time });
+  # $logger->debug( { 'type'     => "pipeline_stats",
+  # 		   'program'  => $0,
+  # 		   'pid'      => $$,
+  # 		   'status'   => "FINISHED",
+  # 		   'runtime'  => $end_time - $start_time });
 
 
   return( $no_restart );
