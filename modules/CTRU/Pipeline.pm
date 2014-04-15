@@ -53,6 +53,8 @@ my $job_counter = 1; # This is for generating internal jms_id (JobManamentSystem
 our $cwd      = `pwd`;
 chomp($cwd);
 
+our $queue_name = "";
+
 my $username = scalar getpwuid $<;
 use Sys::Hostname;
 my $host = hostname;
@@ -87,6 +89,20 @@ my @start_steps;
 # 
 # 
 # 
+# Kim Brugger (15 Apr 2014)
+sub successful {
+
+  # All jobs finished as expected!
+  return 1 if ( ! $no_restart);
+
+  return 0;
+}
+
+
+
+# 
+# 
+# 
 # Kim Brugger (04 Jul 2012)
 sub max_jobs {
   my ($jobs) = @_;
@@ -94,6 +110,19 @@ sub max_jobs {
   $max_jobs = $jobs if ( $jobs and ( $jobs =~ /^\d+\z/ || $jobs == -1));
 
   
+}
+
+
+
+# 
+# 
+# 
+# Kim Brugger (30 Oct 2013)
+sub set_queue {
+  my ( $new_queue ) = @_;
+  return if ( ! $new_queue );
+
+  $queue_name = $new_queue;
 }
 
 
@@ -261,10 +290,10 @@ sub version {
 
   if ($libdir && $libdir =~ /.*\//) {
     $libdir =~ s/(.*\/).*/$1/;
-    $sha = `cd $libdir; git describe --always --dirty 2> /dev/null`;
+    $sha = `cd $libdir; git describe --always 2> /dev/null`;
   }
   else {
-    $sha = `git describe --always --dirty`;
+    $sha = `git describe --always `;
   }
   $sha ||= "unknown";
 
@@ -315,8 +344,8 @@ sub cwd {
 # 
 # Kim Brugger (05 Jul 2010)
 sub submit_system_job {
-  my ($cmd, $output, $limit) = @_;
-  submit_job($cmd, $output, $limit, 1);
+  my ($cmd, $output, $limit, $delete_file) = @_;
+  submit_job($cmd, $output, $limit, $delete_file, 1);
 }
 
 
@@ -325,7 +354,7 @@ sub submit_system_job {
 # 
 # Kim Brugger (22 Apr 2010)
 sub submit_job {
-  my ($cmd, $output, $limit, $system) = @_;
+  my ($cmd, $output, $limit, $delete_file, $system) = @_;
 
   if ( ! $cmd ) {
      Carp::confess(" no cmd given\n");
@@ -351,7 +380,8 @@ sub submit_job {
 		   output      => $output,
 		   limit       => $limit,
 		   logic_name  => $current_logic_name,
-		   pre_jms_ids => $pre_jms_ids};
+		   pre_jms_ids => $pre_jms_ids,
+		   delete_file => $delete_file };
 
 
   if ( $system ) {
@@ -692,7 +722,7 @@ sub total_runtime {
    
     next if ( $job_id == -1 || !$job_id );
 
-    $runtime += int($backend->job_runtime( $job_id )) || 0;
+    $runtime += int($backend->job_runtime( $job_id )) if ($backend->job_runtime( $job_id ));
   }
 
   return sprintf("Total runtime: %8s\n", format_time( $runtime ));
@@ -835,6 +865,13 @@ sub check_jobs {
 		       "output"     => $jms_hash{ $jms_id }{ 'output' },
 		       "limit"      => $jms_hash{ $jms_id }{ 'limit' },
 		     });
+
+      # Job finished successfully, so delete any files tagged for deletion
+      if ( $jms_hash{ $jms_id }{ 'delete_file' } ) {
+	print "CLEAN UP :::: rm -f $jms_hash{ $jms_id }{ 'delete_file' } \n";
+	system "rm -f $jms_hash{ $jms_id }{ 'delete_file' }";
+      }
+
     }
     elsif ($status == $FAILED ) {
       $jobs_submitted--;
