@@ -36,7 +36,11 @@ sub submit_job {
 
   $CTRU::Pipeline::logger->debug("--]] $cmd ( $limit )\n");
 
+  $limit .= " -q $CTRU::Pipeline::queue_name " if ( $CTRU::Pipeline::queue_name && $CTRU::Pipeline::queue_name ne "");
+
   my ($tmp_fh, $tmp_file) = File::Temp::tempfile(DIR => "./tmp" );
+  close( $tmp_fh);
+  system "rm $tmp_file";
   $tmp_file .= ".sge";
   open (my $qpipe, " | qsub -cwd -S /bin/sh $limit -N $CTRU::Pipeline::project_name > $tmp_file 2> /dev/null ") || die "Could not open qsub-pipe: $!\n";
   print $qpipe "cd $CTRU::Pipeline::cwd; $cmd";
@@ -56,9 +60,13 @@ sub submit_job {
     $job_id =~ s/(\d+?)\..*/$1/;
   }
   
-#  system "rm $tmp_file" if ( $job_id != -100 );
+  system "rm $tmp_file" if ( $job_id != -100 );
 
   $stats{ $job_id }{ start } = Time::HiRes::gettimeofday;
+
+  $stats{$job_id}{'stderr_file'} = "$CTRU::Pipeline::project_name.e$job_id";
+  $stats{$job_id}{'stdout_file'} = "$CTRU::Pipeline::project_name.o$job_id";
+
 
   
   return $job_id;
@@ -77,7 +85,8 @@ sub job_status {
 #  print "$job_id\n";
 
   return $CTRU::Pipeline::FAILED if ( $job_id == -100);
-  
+
+  if (0 ) {
   use XML::Simple;
 
   my $xml;
@@ -89,13 +98,13 @@ sub job_status {
   if ( $xml && $xml !~ /unknown_jobs/) {
     my $sge_stats = XMLin( $xml );
 
-    $stats{$job_id}{'stderr_file'} = $$sge_stats{'djob_info'}{'element'}{'JB_stderr_path_list'}{'path_list'}{'PN_path'};
-    $stats{$job_id}{'stdout_file'} = $$sge_stats{'djob_info'}{'element'}{'JB_stdout_path_list'}{'path_list'}{'PN_path'};
+    $stats{$job_id}{'stderr_file'} = "";
+    $stats{$job_id}{'stdout_file'} = "";
   }
-
+  }
   my %res;
 
-  open ( $qspipe, "qstat  | egrep '^ +$job_id +'  2> /dev/null | ") || die "Could not open 'qstat2-pipeline': $!\n";
+  open ( my $qspipe, "qstat  | egrep '^ +$job_id +'  2> /dev/null | ") || die "Could not open 'qstat2-pipeline': $!\n";
   while(<$qspipe>) {
     chomp;
     (undef, undef, undef, undef, undef, my $state, undef) = split(/\s+/);
