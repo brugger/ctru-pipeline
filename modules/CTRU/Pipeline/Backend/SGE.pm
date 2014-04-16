@@ -34,7 +34,7 @@ sub submit_job {
   $limit = "-l $limit" if ( $limit && $limit ne "");
   $limit ||= "";
 
-  $CTRU::Pipeline::logger->debug("--]] $cmd ( $limit )\n");
+  $CTRU::Pipeline::logger->debug("--]] $cmd | qsub -cwd -S /bin/sh $limit -N $CTRU::Pipeline::project_name ( $limit )\n");
 
   $limit .= " -q $CTRU::Pipeline::queue_name " if ( $CTRU::Pipeline::queue_name && $CTRU::Pipeline::queue_name ne "");
 
@@ -145,8 +145,8 @@ sub job_status {
       $stats{ $job_id }{ 'memory' } *= 1000;
     }    
 
-#    print "$job_id is finished -- ";
-    if ( $res{exit_status} == 0) {      
+#    print "$job_id is finished -- and succeeded";
+    if ( $res{exit_status} == 0 ) {      
       # Remove the darwin logfiles, as we succeeded and do not need them anymore...
       if ( $stats{ $job_id }{'stderr_file'} ) {
 	system "rm -f $stats{ $job_id }{'stderr_file'}";
@@ -167,6 +167,23 @@ sub job_status {
   return $CTRU::Pipeline::QUEUEING if ( $res{job_state} && ($res{job_state} =~/q/ || $res{job_state} =~/w/));
 
   return $CTRU::Pipeline::UNKNOWN;
+}
+
+
+
+# 
+# 
+# 
+# Kim Brugger (16 Apr 2014)
+sub check {
+
+  my $qsub = `which qsub`;
+  chomp $qsub;
+
+#  print STDERR "$qsub \n";
+  
+  return 1 if ( $qsub =~ /qsub/);
+  return 0;
 }
 
 

@@ -22,7 +22,12 @@ my $last_save      =   0;
 my $save_interval  = 300;
 my $max_retry      =   3;
 my $jobs_submitted =   0;
+
 my $sleep_time     =   5;
+my $max_sleep_time = 300;
+my $sleep_start    =   5;
+my $sleep_increase =  15; 
+
 my $current_logic_name;
 my $pre_jms_ids    = undef;
 my $use_storing    =   1; # debugging purposes
@@ -238,7 +243,13 @@ sub backend {
     $backend =~ s/CTRU::Pipeline::Backend:://;
     # and (re)append it (again);
     $backend = "CTRU::Pipeline::Backend::".$backend;
+
+    die "$backend is not supported on this server\n"
+	if (! $backend->check() );
+
   }
+
+
 
   return $backend;
 }
@@ -1232,7 +1243,7 @@ sub run {
 
   while (1) {
 
-    my ($started, $running ) = (0,0);
+    my ($started, $queued, $running ) = (0,0,0);
 
     my @active_jobs = fetch_active_jms_ids();
        
@@ -1243,7 +1254,7 @@ sub run {
     if ( ! @active_jobs && ! $restarted_run ) {
       foreach my $start_logic_name ( @start_logic_names ) {
         run_analysis( $start_logic_name );
-	$running++;
+	$queued++;
       }
       # set this variable to null so we dont end here again. 
       # This could also be done with a flag, but for now here we are.
@@ -1336,8 +1347,12 @@ sub run {
 	  $jms_hash{ $jms_id }{ tracking } = 0;
 #	  $no_restart++;
 	}
+	elsif ( $jms_hash{ $jms_id }{ status } == $RUNNING ) {
+          $queued++;
+	  $running++;
+	}
         else {
-          $running++;
+          $queued++;
         }
       }
     }
@@ -1354,7 +1369,16 @@ sub run {
 #    system('clear');
 #    print report_spinner();
     print report();
-    last if ( ! $running && ! $started && !@retained_jobs);
+    last if ( ! $queued && ! $started && !@retained_jobs);
+
+    # Increase sleeping if there are no jobs running. Should decrease the head node load when running a-ton-of-jobs (tm)
+    $sleep_time += $sleep_increase
+	if (  ! $running && $sleep_time < $max_sleep_time);
+
+    $sleep_time = $sleep_start
+	if (  $running );
+
+#    print STDERR "SLEEP TIME: $sleep_time; 	if (  ! $running && $queued && ! $started && ($sleep_time < $max_sleep_time));\n";
 
     sleep ( $sleep_time );
     check_jobs();

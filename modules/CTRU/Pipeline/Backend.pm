@@ -64,5 +64,10 @@ sub stats {
   return 0;
 }
 
+# checks enviroment, eg qsub for SGE!
+sub check {
+  $CTRU::Pipeline::logger->info("check has not been implemented for the backend you are using!\n");
+  return 1;
+}
 
 1;
