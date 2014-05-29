@@ -24,7 +24,7 @@ my $max_retry      =   3;
 my $jobs_submitted =   0;
 
 my $sleep_time     =   5;
-my $max_sleep_time = 300;
+my $max_sleep_time =   5;
 my $sleep_start    =   5;
 my $sleep_increase =  15; 
 
@@ -43,7 +43,10 @@ my $restarted_run  =   0;
 my $backend           = "CTRU::Pipeline::Backend";
 our $logger           = "CTRU::Pipeline::Log";
 
-our $project_name = "EPipe"; # What shows up in qstats
+
+my %thread_name_hash;
+our $project_name = "CPipe"; # What shows up in qstats
+$thread_name_hash{0} = $project_name;
 
 
 my ($start_time, $end_time);
@@ -53,7 +56,12 @@ my %jms_hash;
 my @retained_jobs;
 my %analysis_order;
 
-my $job_counter = 1; # This is for generating internal jms_id (JobManamentSystem_Id)
+my $job_counter    = 1; # This is for generating internal jms_id (JobManamentSystem_Id)
+
+my $thread_counter = 0; # This is for generating internal thread_id 
+my $active_thread_id = 0;
+
+my $database_tracking = 0;
 
 our $cwd      = `pwd`;
 chomp($cwd);
@@ -135,7 +143,7 @@ sub set_queue {
 # 
 # 
 # Kim Brugger (14 Jun 2012)
-sub add_step {
+sub next_step {
   my( $pre_name, $name, $function_name, $cluster_param) = @_;
 
   $function_name ||= $name;
@@ -151,7 +159,7 @@ sub add_step {
 # 
 # 
 # Kim Brugger (14 Jun 2012)
-sub add_start_step {
+sub start_step {
   my( $name, $function_name, $cluster_param) = @_;
 
   $function_name ||= $name;
@@ -168,7 +176,7 @@ sub add_start_step {
 # 
 # 
 # Kim Brugger (14 Jun 2012)
-sub add_merge_step {
+sub merge_step {
   my($pre_name, $name, $function_name, $cluster_param) = @_;
 
   $function_name ||= $name;
@@ -176,6 +184,23 @@ sub add_merge_step {
   $analysis{ $name } = {function => $function_name,
 			cparam   => $cluster_param,
 			sync     => 1};
+
+  push @{$flow{ $pre_name}}, $name;
+
+}
+
+# 
+# 
+# 
+# Kim Brugger (14 Jun 2012)
+sub thread_merge_step {
+  my($pre_name, $name, $function_name, $cluster_param) = @_;
+
+  $function_name ||= $name;
+
+  $analysis{ $name } = {function    => $function_name,
+			cparam      => $cluster_param,
+			thread_sync => 1};
 
   push @{$flow{ $pre_name}}, $name;
 
@@ -195,6 +220,7 @@ sub args {
 
 
 
+
 # 
 # 
 # 
@@ -203,6 +229,25 @@ sub set_project_name {
   my ($new_name) = @_;
   $project_name = $new_name;
   
+}
+
+
+
+
+# 
+# 
+# 
+# Kim Brugger (29 May 2014)
+sub database_tracking {
+  my ($dbname, $dbhost, $dbuser, $dbpass) = @_;
+  die "Need to provide both database name, host, user and password  to be able database_tracking\n" 
+      if ( ! $dbhost || ! $dbname || !$dbuser || ! $dbpass);
+
+  require CTRU::Pipeline::Tracker;
+
+  CTRU::Pipeline::Tracker::connect(@_);
+
+  $database_tracking = 1;
 }
 
 
@@ -294,7 +339,6 @@ sub save_interval {
 # Kim Brugger (20 Sep 2010)
 sub version {
 
-
   my $libdir = $INC{ 'CTRU/Pipeline.pm'};
 
   my $sha   = "unknown";
@@ -353,6 +397,17 @@ sub cwd {
 # 
 # 
 # 
+# Kim Brugger (16 May 2014)
+sub new_thread_id {
+  $active_thread_id = ++$thread_counter;
+  $thread_name_hash{ $active_thread_id } = $project_name;
+  return $thread_counter;
+}
+
+
+# 
+# 
+# 
 # Kim Brugger (05 Jul 2010)
 sub submit_system_job {
   my ($cmd, $output, $limit, $delete_file) = @_;
@@ -366,6 +421,10 @@ sub submit_system_job {
 # Kim Brugger (22 Apr 2010)
 sub submit_job {
   my ($cmd, $output, $limit, $delete_file, $system) = @_;
+
+#  print "  my ($cmd, $output, $limit, $delete_file, $thread_id, $system) = @_;\n";
+
+#  print "submit_job  - ACTIVE THREAD_ID: $active_thread_id\n";
 
   if ( ! $cmd ) {
      Carp::confess(" no cmd given\n");
@@ -392,7 +451,8 @@ sub submit_job {
 		   limit       => $limit,
 		   logic_name  => $current_logic_name,
 		   pre_jms_ids => $pre_jms_ids,
-		   delete_file => $delete_file };
+		   delete_file => $delete_file,
+		   thread_id   => $active_thread_id };
 
 
   if ( $system ) {
@@ -426,12 +486,15 @@ sub submit_job {
 		   "command"    => $jms_hash{ $jms_id }{ 'command'   },
 		   "output"     => $jms_hash{ $jms_id }{ 'output'    },
 		   "limit"      => $jms_hash{ $jms_id }{ 'limit'     },
+		   "thread_id"  => $active_thread_id,
 		 });
 
 
   foreach my $pre_jms_id ( @$pre_jms_ids) {
     push @{$jms_hash{ $pre_jms_id }{ post_jms_id }}, $jms_id if ( $pre_jms_id );
   }
+
+#  $active_thread_id = 0;
 }
 
 
@@ -549,7 +612,6 @@ sub freeze_file {
 # Kim Brugger (05 Jul 2010)
 sub get_timestamp {
   
-
   use POSIX 'strftime';
   my $time = strftime('%d/%m/%y %H.%M', localtime);
 
@@ -673,6 +735,48 @@ sub report_spinner {
 }
 
 
+
+# 
+# 
+# 
+# Kim Brugger (24 Jun 2010)
+sub report2tracker {
+
+  my %res = ();
+
+  foreach my $jms_id ( fetch_jms_ids() ) {
+    my $logic_name   = $jms_hash{ $jms_id }{ logic_name};
+    my $status       = $jms_hash{ $jms_id }{ status }; 
+    my $project_name = $thread_name_hash{ $jms_hash{ $jms_id }{ thread_id }}; 
+    $res{$project_name}{ $logic_name }{ $status }++;
+    $res{$project_name}{ $logic_name }{ failed } += ($jms_hash{ $jms_id }{ failed } || 0 );
+   
+  }
+
+  return if ( keys %res == 0);
+
+  foreach my $project_name ( keys %res ) {
+    foreach my $logic_name ( keys %{$res{ $project_name }} ) {
+
+      my $sub_other = ($res{ $project_name }{ $logic_name }{ $QUEUEING  } || 0);
+      $sub_other += ($res{ $project_name }{ $logic_name }{ $RESUBMITTED  } || 0);
+      $sub_other += ($res{ $project_name }{ $logic_name }{ $SUBMITTED  } || 0);
+
+      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'done', $res{ $project_name }{ $logic_name }{ $FINISHED } || 0);
+
+      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'running', $res{ $project_name }{ $logic_name }{ $RUNNING } || 0); 
+
+      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'queuing', $sub_other || 0); 
+
+      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'failed', $res{ $project_name }{ $logic_name }{ $FAILED } || 0); 
+
+      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'unknown', $res{ $project_name }{ $logic_name }{ $UNKNOWN } || 0); 
+
+    }
+  }
+
+}
+
 # 
 # 
 # 
@@ -711,6 +815,7 @@ sub report {
 
     $report .= sprintf("%-17s ||  %8s  || %10s || $queue_stats\n", $logic_name,
 		       format_time($res{ $logic_name }{ runtime }), format_memory($res{ $logic_name }{ memory }));
+
   }
 
   return $report;
@@ -1084,10 +1189,11 @@ sub delete_tmp_files {
 sub fetch_jobs {
   my ( @logic_names ) = @_;
 
-
   my @jobs;
   foreach my $jms_id ( fetch_jms_ids() ) {    
-    push @jobs, $jms_id if ( grep(/$jms_hash{ $jms_id }{ logic_name }/, @logic_names) );
+    push @jobs, $jms_id 
+	if ( grep(/$jms_hash{ $jms_id }{ logic_name }/, @logic_names) && 
+	     $active_thread_id eq $jms_hash { $jms_id }{ thread_id });
   }
 
   return @jobs;
@@ -1199,8 +1305,10 @@ sub depends_on_active_jobs {
     
 #    print "$jms_id --> $dependency{ $jms_hash{ $jms_id }{ logic_name }}\n";
 
+
     if ( $dependency{ $jms_hash{ $jms_id }{ logic_name }}) {
-      return 1;
+      return 1 if ( $active_thread_id && $jms_hash{ $jms_id }{ thread_id } == $active_thread_id);
+      return 1 if ( ! $active_thread_id );
     }
   }
   
@@ -1243,6 +1351,9 @@ sub run {
 
   while (1) {
 
+    $active_thread_id = 0;
+    $project_name = $thread_name_hash{ $active_thread_id };
+
     my ($started, $queued, $running ) = (0,0,0);
 
     my @active_jobs = fetch_active_jms_ids();
@@ -1264,8 +1375,12 @@ sub run {
 
       foreach my $jms_id ( @active_jobs ) {
 
+	
 	next if ( ! $jms_hash{ $jms_id }{ tracking });
         my $logic_name = $jms_hash{ $jms_id }{ logic_name };
+	$active_thread_id = $jms_hash{ $jms_id }{ thread_id };
+	$project_name = $thread_name_hash{ $active_thread_id };
+
 
         if ( $jms_hash{ $jms_id }{ status } == $FINISHED ) {
 	  
@@ -1279,10 +1394,13 @@ sub run {
 
 	  foreach my $next_logic_name ( @next_logic_names ) {
 
-	    # all threads for this run has to finish before we can 
-	    # proceed to the next one. If a failed job exists this will never be 
-	    # possible
-	    if ( $analysis{ $next_logic_name }{ sync } ) { 
+
+	    if ( $analysis{ $next_logic_name }{ sync }  || $analysis{ $next_logic_name }{ thread_sync }) { 
+
+	      $active_thread_id = 0 if ( $analysis{ $next_logic_name }{ sync });
+
+
+	      print "SYNC ACTIVE THREAD ID :: $active_thread_id\n";
 	      
 
 	      $DB::single = 1;
@@ -1369,6 +1487,8 @@ sub run {
 #    system('clear');
 #    print report_spinner();
     print report();
+    report2tracker();
+
     last if ( ! $queued && ! $started && !@retained_jobs);
 
     # Increase sleeping if there are no jobs running. Should decrease the head node load when running a-ton-of-jobs (tm)

@@ -21,18 +21,12 @@ use CTRU::Pipeline::Misc;
 my $executer = "/software/packages/ctru-pipeline/dev/dummies/local.pl";
 
 
-CTRU::Pipeline::add_start_step('A', 'single');
-CTRU::Pipeline::add_step('A', 'B', 'single_slow');
-CTRU::Pipeline::add_step('B', 'D', 'multiple');
-CTRU::Pipeline::add_step('B', 'F', );
+CTRU::Pipeline::start_step('A', 'multiple_starts');
+CTRU::Pipeline::next_step('A', 'B', 'multiple');
+CTRU::Pipeline::next_step('B', 'C', 'single');
+CTRU::Pipeline::thread_merge_step('C', 'D', 'single');
 
-CTRU::Pipeline::add_step('A', 'C', 'single');
-CTRU::Pipeline::add_step('C', 'E', 'multiple');
-CTRU::Pipeline::add_step('C', 'F', 'single_slow');
-
-CTRU::Pipeline::add_step('D', 'G', 'single');
-CTRU::Pipeline::add_merge_step('E', 'G', 'single');
-CTRU::Pipeline::add_merge_step('F', 'G', 'single');
+CTRU::Pipeline::merge_step('D', 'E', 'single');
 
 
 my %opts;
@@ -50,6 +44,7 @@ use lib '/software/packages/ctru-clinical/modules';
 use CTRU::ComplexLog;
 CTRU::Pipeline::logger('CTRU::ComplexLog');
 $CTRU::Pipeline::logger->level('fatal');
+CTRU::Pipeline::database_tracking('gemini_tracker', 'mgsrv01.medschl.cam.ac.uk', 'easih_admin', 'easih');
 
 if ( $opts{R} ) {
   &CTRU::Pipeline::reset($opts{R});
@@ -66,8 +61,29 @@ else {
 $CTRU::Pipeline::logger->flush_queue();
 
 
+
+
+# 
+# 
+# 
+# Kim Brugger (20 May 2014)
+sub multiple_starts {
+  
+  for(my $i=0;$i< 4; $i++ ) {
+    CTRU::Pipeline::set_project_name("START-$i");
+    my $thread_id = CTRU::Pipeline::new_thread_id();
+    
+    my $cmd = "$executer";
+    my $tmp_file = 'tyt';
+    CTRU::Pipeline::submit_job("$cmd ", $tmp_file);
+  }
+
+  
+}
+
+
 sub multiple {
-  my ($input) = @_;
+  my ($input, $thread_id) = @_;
 
   my $cmd = "$executer";
   my $tmp_file = 'tyt';
@@ -79,7 +95,7 @@ sub multiple {
 }
 
 sub multiple_fail {
-  my ($input) = @_;
+  my ($input, $thread_id) = @_;
 
   my $cmd = "$executer";
   my $tmp_file = 'tyt';
@@ -94,7 +110,7 @@ sub multiple_fail {
 
 
 sub single {
-  my ($input) = @_;
+  my ($input, $thread_id) = @_;
 
   my $cmd = "$executer ";
   my $tmp_file = 'tyt';
@@ -102,7 +118,7 @@ sub single {
 }
 
 sub single_slow {
-  my ($input) = @_;
+  my ($input, $thread_id) = @_;
 
   my $cmd = "$executer -S 60";
   my $tmp_file = 'tyt';
@@ -116,7 +132,7 @@ sub single_slow {
 # Kim Brugger (09 Sep 2010)
 sub single_fail {
 
-  my ($input) = @_;
+  my ($input, $thread_id) = @_;
 
   my $cmd = "$executer ";
   my $tmp_file = 'tyt';
