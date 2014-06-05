@@ -43,7 +43,7 @@ my $restarted_run  =   0;
 my $backend           = "CTRU::Pipeline::Backend";
 our $logger           = "CTRU::Pipeline::Log";
 
-our $project_name = "EPipe"; # What shows up in qstats
+our $run_name = "EPipe"; # What shows up in qstats
 
 
 my ($start_time, $end_time);
@@ -58,7 +58,8 @@ my $job_counter = 1; # This is for generating internal jms_id (JobManamentSystem
 our $cwd      = `pwd`;
 chomp($cwd);
 
-our $queue_name = "";
+our $queue_name   = "";
+our $project_name = "";
 
 my $username = scalar getpwuid $<;
 use Sys::Hostname;
@@ -130,6 +131,14 @@ sub set_queue {
   $queue_name = $new_queue;
 }
 
+sub set_project {
+  my ( $new_project ) = @_;
+  
+  return if ( ! $new_project );
+
+  $project_name = $new_project;
+}
+
 
 # 
 # 
@@ -199,9 +208,9 @@ sub args {
 # 
 # 
 # Kim Brugger (05 Jul 2013)
-sub set_project_name {
+sub run_name {
   my ($new_name) = @_;
-  $project_name = $new_name;
+  $run_name = $new_name;
   
 }
 
@@ -1636,7 +1645,7 @@ sub store_state {
 	      start_time         => $start_time,
 	      username           => $username,
 	      host               => $host,
-	      project            => $project_name,
+	      run                => $run_name,
 	      
 	      stats              => $backend->stats,
 	      
