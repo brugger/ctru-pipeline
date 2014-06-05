@@ -5,6 +5,7 @@ use CTRU::Pipeline::Backend::Local;
 use CTRU::Pipeline::Backend::Darwin;
 #use CTRU::Pipeline::Backend::MPIexec;
 use CTRU::Pipeline::Backend::SGE;
+use CTRU::Pipeline::Backend::LSF;
 
 
 
