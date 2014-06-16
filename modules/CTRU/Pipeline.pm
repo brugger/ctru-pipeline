@@ -23,10 +23,10 @@ my $save_interval  = 300;
 my $max_retry      =   3;
 my $jobs_submitted =   0;
 
-my $sleep_time     =   5;
-my $max_sleep_time =   5;
-my $sleep_start    =   5;
-my $sleep_increase =  15; 
+my $sleep_time     =   30;
+my $max_sleep_time =  300;
+my $sleep_start    =  $sleep_time;
+my $sleep_increase =  30; 
 
 my $current_logic_name;
 my $pre_jms_ids    = undef;
@@ -159,6 +159,16 @@ sub next_step {
 # 
 # 
 # Kim Brugger (14 Jun 2012)
+sub add_step {
+  next_step(@_);
+}
+
+
+
+# 
+# 
+# 
+# Kim Brugger (14 Jun 2012)
 sub start_step {
   my( $name, $function_name, $cluster_param) = @_;
 
@@ -169,6 +179,16 @@ sub start_step {
 
   push @start_steps, $name;
 
+}
+
+
+# 
+# 
+# 
+# Kim Brugger (30 May 2014)
+sub add_start_step {
+  start_step( @_ );
+  
 }
 
 
@@ -188,6 +208,17 @@ sub merge_step {
   push @{$flow{ $pre_name}}, $name;
 
 }
+
+
+# 
+# 
+# 
+# Kim Brugger (30 May 2014)
+sub add_merge_step {
+  merge_step( @_ );
+  
+}
+
 
 # 
 # 
@@ -228,7 +259,7 @@ sub args {
 sub set_project_name {
   my ($new_name) = @_;
   $project_name = $new_name;
-  
+  $thread_name_hash{ $active_thread_id } = $project_name;
 }
 
 
@@ -755,12 +786,23 @@ sub report2tracker {
 
   return if ( keys %res == 0);
 
+#  die Dumper( \%analysis_order );
+
+  my $total_steps = int(keys %analysis_order) - 1;
+
   foreach my $project_name ( keys %res ) {
+    my $finished_steps = 0;
     foreach my $logic_name ( keys %{$res{ $project_name }} ) {
 
       my $sub_other = ($res{ $project_name }{ $logic_name }{ $QUEUEING  } || 0);
       $sub_other += ($res{ $project_name }{ $logic_name }{ $RESUBMITTED  } || 0);
       $sub_other += ($res{ $project_name }{ $logic_name }{ $SUBMITTED  } || 0);
+
+      $finished_steps++
+	  if ( ! $res{ $project_name }{ $logic_name }{ $RUNNING } &&
+	       ! $res{ $project_name }{ $logic_name }{ $UNKNOWN } &&
+	       ! $sub_other);
+
 
       CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'done', $res{ $project_name }{ $logic_name }{ $FINISHED } || 0);
 
@@ -773,7 +815,18 @@ sub report2tracker {
       CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'unknown', $res{ $project_name }{ $logic_name }{ $UNKNOWN } || 0); 
 
     }
+
+
+    CTRU::Pipeline::Tracker::update_progress($project_name, $finished_steps, $total_steps);
+  
+#    printf("$project_name ----------->>> %.2f %% done\n", $finished_steps*100/$total_steps);
+
+#    print "$finished_steps --> " . int(keys %analysis_order) . "\n";
+
   }
+
+
+  
 
 }
 
@@ -1487,7 +1540,7 @@ sub run {
 #    system('clear');
 #    print report_spinner();
     print report();
-    report2tracker();
+    report2tracker() if ($database_tracking);
 
     last if ( ! $queued && ! $started && !@retained_jobs);
 
@@ -1503,6 +1556,9 @@ sub run {
     sleep ( $sleep_time );
     check_jobs();
   }
+
+  print report();
+  report2tracker() if ($database_tracking);
   print total_runtime();
   print real_runtime();
 

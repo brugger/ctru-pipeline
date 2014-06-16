@@ -43,7 +43,6 @@ sub connected {
 sub update_status {
   my ($name, $step, $status, $count) = @_;
 
-
   if ( ! $name || ! $step || ! $status || ! defined $count) { 
     print STDERR "update_status: missing variable: name: $name, step: $step, status:$status, count: $count \n";
     return -1;
@@ -58,6 +57,62 @@ sub update_status {
   return (EASIH::DB::replace($dbi, "status_tracking", \%call_hash));
 }
 
+
+
+# 
+# 
+# 
+# Kim Brugger (30 May 2014)
+sub fetch_running_steps {
+
+  my $q = "select DISTINCT name, step from status_tracking where count > 0 and (status = 'queuing' or status = 'running' or status ='unknow') order by name,step";
+
+  my $sth  = EASIH::DB::prepare($dbi, $q);
+  return EASIH::DB::fetch_array_hash( $dbi, $sth);
+}
+
+
+
+# 
+# 
+# 
+# Kim Brugger (20 Nov 2013)
+sub update_progress {
+  my ($name, $steps_done, $steps_total) = @_;
+
+
+  if ( ! $name || ! defined $steps_done || ! defined $steps_total) { 
+    print STDERR "update_status: missing variable: name: $name, steps_done: $steps_done, steps_total: $steps_total \n";
+    return -1;
+  }
+
+  
+  my %call_hash = ( name => $name,
+		    steps_done => $steps_done, 
+		    steps_total => $steps_total);
+
+  return (EASIH::DB::replace($dbi, "progress_tracking", \%call_hash));
+}
+
+
+
+# 
+# 
+# 
+# Kim Brugger (30 May 2014)
+sub fetch_progresses {
+  my ( $hour_limit ) = @_;
+
+  my $q = "select * from progress_tracking";
+
+  if ( $hour_limit ) {
+    $q .= " WHERE time > ADDDATE(NOW(), INTERVAL - $hour_limit HOUR) ";
+  }
+
+  $q .= " order by time";
+  my $sth  = EASIH::DB::prepare($dbi, $q);
+  return EASIH::DB::fetch_array_hash( $dbi, $sth);
+}
 
 
 1;

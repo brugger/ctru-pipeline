@@ -15,3 +15,16 @@ CREATE TABLE status_tracking (
   PRIMARY  KEY ref_idx (name, step, status)
 
 ) ENGINE INNODB;
+
+
+CREATE TABLE progress_tracking (
+
+  name                VARCHAR(80) NOT NULL PRIMARY  KEY, 
+  steps_done          INT NOT NULL,
+  steps_total         INT NOT NULL,
+  time  	      timestamp
+
+) ENGINE INNODB;
+
+
+
