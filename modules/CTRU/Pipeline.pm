@@ -430,8 +430,13 @@ sub cwd {
 # 
 # Kim Brugger (16 May 2014)
 sub new_thread_id {
+  my $name = shift;
+  
+  $name ||= $project_name;
+  
   $active_thread_id = ++$thread_counter;
-  $thread_name_hash{ $active_thread_id } = $project_name;
+  $thread_name_hash{ $active_thread_id } = $name;
+
   return $thread_counter;
 }
 
