@@ -46,6 +46,7 @@ our $logger           = "CTRU::Pipeline::Log";
 
 my %thread_name_hash;
 our $project_name = "CPipe"; # What shows up in qstats
+
 $thread_name_hash{0} = $project_name;
 
 
@@ -262,9 +263,6 @@ sub set_project_name {
   $thread_name_hash{ $active_thread_id } = $project_name;
 }
 
-
-
-
 # 
 # 
 # 
@@ -438,6 +436,15 @@ sub new_thread_id {
   $thread_name_hash{ $active_thread_id } = $name;
 
   return $thread_counter;
+}
+
+# 
+# 
+# 
+# Kim Brugger (13 Jul 2014)
+sub get_thread_id {
+  return $active_thread_id;
+  
 }
 
 
