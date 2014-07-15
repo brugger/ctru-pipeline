@@ -1,25 +1,33 @@
-DROP DATABASE IF EXISTS gemini_tracker;
-CREATE DATABASE gemini_tracker;
-USE gemini_tracker;
+DROP DATABASE IF EXISTS ctru_tracker;
+CREATE DATABASE ctru_tracker;
+USE ctru_tracker;
 
 
 CREATE TABLE status_tracking (
 
-  name                VARCHAR(80) NOT NULL,
+  run_name            VARCHAR(80) NOT NULL,
+  thread_name         VARCHAR(80) NOT NULL,
+
   step                VARCHAR(80) NOT NULL,
-  status              VARCHAR(80) NOT NULL,
-  count		      INT NOT NULL,
+  done		      INT,
+  running, 	      INT,
+  queuing	      INT,
+  failed	      INT,
+  unknown	      INT,
   time  	      timestamp,
 
 
-  PRIMARY  KEY ref_idx (name, step, status)
+  PRIMARY  KEY ref_idx  (run_name, step),
+  PRIMARY  KEY ref2_idx (thread_name, step)
 
 ) ENGINE INNODB;
 
 
 CREATE TABLE progress_tracking (
 
-  name                VARCHAR(80) NOT NULL PRIMARY  KEY, 
+  run_name            VARCHAR(80) NOT NULL PRIMARY  KEY, 
+  thread_name         VARCHAR(80) NOT NULL,
+
   steps_done          INT NOT NULL,
   steps_total         INT NOT NULL,
   time  	      timestamp
