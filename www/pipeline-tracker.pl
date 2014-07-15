@@ -9,15 +9,16 @@ use strict;
 use warnings;
 use Data::Dumper;
 
-use lib '/home/kb468/projects/ctru-pipeline/modules/';
+#use lib '/home/kb468/projects/ctru-pipeline/modules/';
+use lib '/home/kb8/tmp/ctru-pipeline/modules/';
 use EASIH::HTML;
 use CTRU::Pipeline::Tracker;
 
 #EASIH::DONE::Connect('done_dev');
 
-my $dbhost = 'mgsrv01';
-my $dbname = 'gemini_tracker';
-my $dbi = CTRU::Pipeline::Tracker::connect($dbname, $dbhost, "easih_admin", "easih");
+my $dbhost = 'localhost';
+my $dbname = 'ctru_tracker';
+my $dbi = CTRU::Pipeline::Tracker::connect($dbname, $dbhost, );
 
 print EASIH::HTML::start('Gemini-tracker', 'pipeline-tracker.css');
 easih_top();
@@ -45,13 +46,13 @@ foreach my $progress (  @{$progresses} ) {
   my $progress_indicator = "<progress value='$$progress{steps_done}' max='$$progress{steps_total}'></progress>";
   my $active_steps       = "-";
   $active_steps       = join("/", @{$running_steps{ $$progress{ name }}}) if ( $running_steps{ $$progress{ name }} );
-  unshift @data, [$$progress{name}, $progress_indicator, $active_steps, $$progress{time}];
+  unshift @data, [$$progress{run_name}, $$progress{thread_name}, $progress_indicator, $active_steps, $$progress{time}];
 
 #  push @data, [$$progress{name}, $$progress{steps_total}, "$$progress{steps_done}", $progress_indicator, $$progress{time}];
   
 }
 
-unshift @data, ['Name', '% done', 'Active step(s)', 'Timestamp'];
+unshift @data, ['Name', 'Thread name', '% done', 'Active step(s)', 'Timestamp'];
 
 
 print EASIH::HTML::advanced_table(\@data, 1, 0, 0, 'lightgrey', 0, '700px') . "<br>\n";
