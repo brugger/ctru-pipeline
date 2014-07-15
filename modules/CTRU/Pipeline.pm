@@ -28,6 +28,10 @@ my $max_sleep_time =  300;
 my $sleep_start    =  $sleep_time;
 my $sleep_increase =  30; 
 
+
+$sleep_time = 10;
+$max_sleep_time = 10;
+
 my $current_logic_name;
 my $pre_jms_ids    = undef;
 my $use_storing    =   1; # debugging purposes
@@ -816,20 +820,18 @@ sub report2tracker {
 	       ! $sub_other);
 
 
-      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'done', $res{ $project_name }{ $logic_name }{ $FINISHED } || 0);
 
-      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'running', $res{ $project_name }{ $logic_name }{ $RUNNING } || 0); 
-
-      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'queuing', $sub_other || 0); 
-
-      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'failed', $res{ $project_name }{ $logic_name }{ $FAILED } || 0); 
-
-      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'unknown', $res{ $project_name }{ $logic_name }{ $UNKNOWN } || 0); 
+      CTRU::Pipeline::Tracker::update_status( $project_name, $thread_name_hash{ $active_thread_id }, $logic_name, $analysis_order{ $logic_name },
+					      $res{ $project_name }{ $logic_name }{ $FINISHED } || 0,
+					      $res{ $project_name }{ $logic_name }{ $RUNNING }  || 0,
+					      $sub_other                                        || 0, # queuing
+					      $res{ $project_name }{ $logic_name }{ $FAILED }   || 0,
+					      $res{ $project_name }{ $logic_name }{ $UNKNOWN }  || 0); 
 
     }
 
 
-    CTRU::Pipeline::Tracker::update_progress($project_name, $finished_steps, $total_steps);
+    CTRU::Pipeline::Tracker::update_progress($project_name, $thread_name_hash{ $active_thread_id }, $finished_steps, $total_steps);
   
 #    printf("$project_name ----------->>> %.2f %% done\n", $finished_steps*100/$total_steps);
 

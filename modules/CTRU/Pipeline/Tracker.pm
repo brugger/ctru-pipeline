@@ -41,18 +41,23 @@ sub connected {
 # 
 # Kim Brugger (20 Nov 2013)
 sub update_status {
-  my ($name, $step, $status, $count) = @_;
+  my ($run_name, $thread_name, $step, $step_nr, $done, $running, $queuing, $failed, $unknown) = @_;
 
-  if ( ! $name || ! $step || ! $status || ! defined $count) { 
-    print STDERR "update_status: missing variable: name: $name, step: $step, status:$status, count: $count \n";
+  if ( ! $run_name || ! $step) { 
+    print STDERR "update_status: missing variable: name: $run_name, \n";
     return -1;
   }
 
   
-  my %call_hash = ( name => $name,
+  my %call_hash = ( run_name => $run_name,
+		    thread_name => $thread_name,		    
 		    step => $step, 
-		    status => $status, 
-		    count => $count);
+		    step_nr => $step_nr,
+		    done => $done,
+		    running => $running,
+		    queuing => $queuing,
+		    failed => $failed,
+		    unknown => $unknown);
 
   return (EASIH::DB::replace($dbi, "status_tracking", \%call_hash));
 }
@@ -65,7 +70,7 @@ sub update_status {
 # Kim Brugger (30 May 2014)
 sub fetch_running_steps {
 
-  my $q = "select DISTINCT name, step from status_tracking where count > 0 and (status = 'queuing' or status = 'running' or status ='unknow') order by name,step";
+  my $q = "select DISTINCT name, step from status_tracking where count > 0 and (status = 'queuing' or status = 'running' or status ='unknown') order by name,step";
 
   my $sth  = EASIH::DB::prepare($dbi, $q);
   return EASIH::DB::fetch_array_hash( $dbi, $sth);
@@ -78,16 +83,17 @@ sub fetch_running_steps {
 # 
 # Kim Brugger (20 Nov 2013)
 sub update_progress {
-  my ($name, $steps_done, $steps_total) = @_;
+  my ($run_name, $thread_name, $steps_done, $steps_total) = @_;
 
 
-  if ( ! $name || ! defined $steps_done || ! defined $steps_total) { 
-    print STDERR "update_status: missing variable: name: $name, steps_done: $steps_done, steps_total: $steps_total \n";
+  if ( ! $run_name || ! defined $steps_done || ! defined $steps_total) { 
+    print STDERR "update_status: missing variable: name: $run_name, steps_done: $steps_done, steps_total: $steps_total \n";
     return -1;
   }
 
   
-  my %call_hash = ( name => $name,
+  my %call_hash = ( run_name => $run_name,
+		    thread_name => $thread_name, 
 		    steps_done => $steps_done, 
 		    steps_total => $steps_total);
 

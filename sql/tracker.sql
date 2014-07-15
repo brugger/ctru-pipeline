@@ -9,16 +9,17 @@ CREATE TABLE status_tracking (
   thread_name         VARCHAR(80) NOT NULL,
 
   step                VARCHAR(80) NOT NULL,
-  done		      INT,
-  running, 	      INT,
-  queuing	      INT,
-  failed	      INT,
-  unknown	      INT,
+  step_nr	      INT DEFAULT 0,
+  done		      INT DEFAULT 0,
+  running 	      INT DEFAULT 0,
+  queuing	      INT DEFAULT 0,
+  failed	      INT DEFAULT 0,
+  unknown	      INT DEFAULT 0,
   time  	      timestamp,
 
 
   PRIMARY  KEY ref_idx  (run_name, step),
-  PRIMARY  KEY ref2_idx (thread_name, step)
+  KEY ref2_idx (thread_name, step)
 
 ) ENGINE INNODB;
 
