@@ -18,7 +18,7 @@ use CTRU::Pipeline::Tracker;
 
 my $dbhost = 'localhost';
 my $dbname = 'ctru_tracker';
-my $dbi = CTRU::Pipeline::Tracker::connect($dbname, $dbhost, );
+my $dbi = CTRU::Pipeline::Tracker::connect($dbname, $dbhost,  );
 
 print EASIH::HTML::start('Gemini-tracker', 'pipeline-tracker.css');
 easih_top();

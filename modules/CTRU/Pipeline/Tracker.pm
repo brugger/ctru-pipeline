@@ -70,7 +70,7 @@ sub update_status {
 # Kim Brugger (30 May 2014)
 sub fetch_running_steps {
 
-  my $q = "select DISTINCT name, step from status_tracking where count > 0 and (status = 'queuing' or status = 'running' or status ='unknown') order by name,step";
+  my $q = "select DISTINCT run_name, thread_name, step from status_tracking where running >= 1 OR queuing >= 1 order by run_name,thread_name,step";
 
   my $sth  = EASIH::DB::prepare($dbi, $q);
   return EASIH::DB::fetch_array_hash( $dbi, $sth);
