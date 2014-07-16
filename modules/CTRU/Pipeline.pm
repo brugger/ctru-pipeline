@@ -264,7 +264,8 @@ sub args {
 sub set_project_name {
   my ($new_name) = @_;
   $project_name = $new_name;
-  $thread_name_hash{ $active_thread_id } = $project_name;
+  print "---------------------------PROJECT NAME $project_name \n";
+  $thread_name_hash{ 0 } = $new_name;
 }
 
 # 
@@ -789,55 +790,71 @@ sub report_spinner {
 # Kim Brugger (24 Jun 2010)
 sub report2tracker {
 
-  my %res = ();
 
-  foreach my $jms_id ( fetch_jms_ids() ) {
-    my $logic_name   = $jms_hash{ $jms_id }{ logic_name};
-    my $status       = $jms_hash{ $jms_id }{ status }; 
-    my $project_name = $thread_name_hash{ $jms_hash{ $jms_id }{ thread_id }}; 
-    $res{$project_name}{ $logic_name }{ $status }++;
-    $res{$project_name}{ $logic_name }{ failed } += ($jms_hash{ $jms_id }{ failed } || 0 );
-   
-  }
+  print "Project-name $project_name :: " . Dumper( \%thread_name_hash ) ;
 
-  return if ( keys %res == 0);
+    my %res = ();
 
+    foreach my $jms_id ( fetch_jms_ids() ) {
+      my $logic_name   = $jms_hash{ $jms_id }{ logic_name};
+      my $status       = $jms_hash{ $jms_id }{ status }; 
+      my $thread_id    = $jms_hash{ $jms_id }{ thread_id }; 
+      $res{ $thread_id }{ $logic_name }{ $status }++;
+      $res{ $thread_id }{ $logic_name }{ failed } += ($jms_hash{ $jms_id }{ failed } || 0 );
+
+      my $job_id     = $jms_hash{ $jms_id }{ job_id }; 
+      
+      if ( $job_id != -1 ) {
+	my $memory = $backend->job_memory( $job_id ) || 0;
+	$res{ $thread_id }{ $logic_name }{ memory } = $memory if ( !$res{ $logic_name }{ memory } || $res{ $logic_name }{ memory } < $memory);
+	$res{ $thread_id }{ $logic_name }{ runtime } += $backend->job_runtime( $job_id ) || 0;
+      }
+      
+    }
+    
+    return if ( keys %res == 0);
+
+    print Dumper( \%res );
+    
 #  die Dumper( \%analysis_order );
 
-  my $total_steps = int(keys %analysis_order) - 1;
+    my $total_steps = int(keys %analysis_order) - 1;
+    
+    foreach my $thread_id ( keys %res ) {
+      my $finished_steps = 0;
+      foreach my $logic_name ( keys %{$res{ $thread_id }} ) {
 
-  foreach my $project_name ( keys %res ) {
-    my $finished_steps = 0;
-    foreach my $logic_name ( keys %{$res{ $project_name }} ) {
-
-      my $sub_other = ($res{ $project_name }{ $logic_name }{ $QUEUEING  } || 0);
-      $sub_other += ($res{ $project_name }{ $logic_name }{ $RESUBMITTED  } || 0);
-      $sub_other += ($res{ $project_name }{ $logic_name }{ $SUBMITTED  } || 0);
-
-      $finished_steps++
-	  if ( ! $res{ $project_name }{ $logic_name }{ $RUNNING } &&
-	       ! $res{ $project_name }{ $logic_name }{ $UNKNOWN } &&
-	       ! $sub_other);
+	my $sub_other = ($res{ $thread_id }{ $logic_name }{ $QUEUEING  } || 0);
+	$sub_other += ($res{ $thread_id }{ $logic_name }{ $RESUBMITTED  } || 0);
+	$sub_other += ($res{ $thread_id }{ $logic_name }{ $SUBMITTED  } || 0);
+	
+	$finished_steps++
+	    if ( ! $res{ $thread_id }{ $logic_name }{ $RUNNING } &&
+		 ! $res{ $thread_id }{ $logic_name }{ $UNKNOWN } &&
+		 ! $sub_other);
+	
 
 
+	CTRU::Pipeline::Tracker::update_status( $project_name, $thread_name_hash{ $thread_id }, $logic_name, $analysis_order{ $logic_name },
+						$res{ $thread_id }{ $logic_name }{ runtime   } || "NA",
+						$res{ $thread_id }{ $logic_name }{ memory    } || "N/A",
+						$res{ $thread_id }{ $logic_name }{ $FINISHED } || 0,
+						$res{ $thread_id }{ $logic_name }{ $RUNNING }  || 0,
+						$sub_other                                        || 0, # queuing
+						$res{ $thread_id }{ $logic_name }{ $FAILED }   || 0,
+						$res{ $thread_id }{ $logic_name }{ $UNKNOWN }  || 0); 
 
-      CTRU::Pipeline::Tracker::update_status( $project_name, $thread_name_hash{ $active_thread_id }, $logic_name, $analysis_order{ $logic_name },
-					      $res{ $project_name }{ $logic_name }{ $FINISHED } || 0,
-					      $res{ $project_name }{ $logic_name }{ $RUNNING }  || 0,
-					      $sub_other                                        || 0, # queuing
-					      $res{ $project_name }{ $logic_name }{ $FAILED }   || 0,
-					      $res{ $project_name }{ $logic_name }{ $UNKNOWN }  || 0); 
-
+      }
+      CTRU::Pipeline::Tracker::update_progress($project_name, $thread_name_hash{ $thread_id }, $finished_steps, $total_steps);
     }
+      
 
-
-    CTRU::Pipeline::Tracker::update_progress($project_name, $thread_name_hash{ $active_thread_id }, $finished_steps, $total_steps);
-  
+      
 #    printf("$project_name ----------->>> %.2f %% done\n", $finished_steps*100/$total_steps);
 
 #    print "$finished_steps --> " . int(keys %analysis_order) . "\n";
 
-  }
+    
 
 
   
@@ -1418,8 +1435,8 @@ sub run {
 
   while (1) {
 
-    $active_thread_id = 0;
-    $project_name = $thread_name_hash{ $active_thread_id };
+#    $active_thread_id = 0;
+#    $project_name = $thread_name_hash{ $active_thread_id };
 
     my ($started, $queued, $running ) = (0,0,0);
 
@@ -1446,7 +1463,7 @@ sub run {
 	next if ( ! $jms_hash{ $jms_id }{ tracking });
         my $logic_name = $jms_hash{ $jms_id }{ logic_name };
 	$active_thread_id = $jms_hash{ $jms_id }{ thread_id };
-	$project_name = $thread_name_hash{ $active_thread_id };
+#	$project_name = $thread_name_hash{ $active_thread_id };
 
 
         if ( $jms_hash{ $jms_id }{ status } == $FINISHED ) {

@@ -41,7 +41,7 @@ sub connected {
 # 
 # Kim Brugger (20 Nov 2013)
 sub update_status {
-  my ($run_name, $thread_name, $step, $step_nr, $done, $running, $queuing, $failed, $unknown) = @_;
+  my ($run_name, $thread_name, $step, $step_nr, $run_time, $max_mem,  $done, $running, $queuing, $failed, $unknown) = @_;
 
   if ( ! $run_name || ! $step) { 
     print STDERR "update_status: missing variable: name: $run_name, \n";
@@ -53,6 +53,8 @@ sub update_status {
 		    thread_name => $thread_name,		    
 		    step => $step, 
 		    step_nr => $step_nr,
+		    run_time => $run_time,
+		    max_mem => $max_mem, 
 		    done => $done,
 		    running => $running,
 		    queuing => $queuing,

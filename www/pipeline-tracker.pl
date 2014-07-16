@@ -33,16 +33,25 @@ if ($EASIH::HTML::parameters{'run_name'}  ) {
   my @data;
 
   print "<H1>Run name stats for: $run_name</H1>";
-
+  my %res;
   foreach my $step ( CTRU::Pipeline::Tracker::fetch_run_name_status( $run_name )) {
-    push @data, [$$step{ 'step' }, $$step{ 'done' }, $$step{ 'running' },  $$step{ 'queuing' },  $$step{ 'failed' }, $$step{ 'unknown' }, $$step{ 'time'}];
+    $res{ $$step{thread_name}}{$$step{ 'step_nr'}} = $step;
   }
 
+  foreach my $thread_name ( sort keys %res ) {
+    foreach my $step_nr ( sort { $res{ $thread_name }{ $a } <=> $res{ $thread_name }{ $b }} keys %{$res{ $thread_name }}) {
 
-  unshift @data, ['Step', 'Done', 'Running', 'Queuing','Failed', 'Unknown'];
+      my $step = $res{ $thread_name }{ $step_nr };
+      
+      push @data, [$$step{ 'thread_name'}, $$step{ 'step' }, sprintf("%.2f", $$step{ 'run_time'}), $$step{ 'max_mem' }, $$step{ 'done' }, $$step{ 'running' },  $$step{ 'queuing' },  $$step{ 'failed' }, $$step{ 'unknown' }, $$step{ 'time'}];
+    
+    }
+  }
+
+  unshift @data, ['Thread name', 'Step', 'Run time', 'Max memory', 'Done', 'Running', 'Queuing','Failed', 'Unknown'];
   
 
-  print EASIH::HTML::advanced_table(\@data, 1, 0, 0, 'lightgrey', 0, '700px') . "<br>\n";
+  print EASIH::HTML::advanced_table(\@data, 1, 0, 0, 'lightgrey', 0, '1000px') . "<br>\n";
 
 
 }
@@ -54,11 +63,13 @@ elsif ($EASIH::HTML::parameters{'thread_name'}  ) {
   print "<H1>Thread name stats for: $thread_name</H1>";
 
   foreach my $step ( CTRU::Pipeline::Tracker::fetch_thread_name_status( $thread_name )) {
-    push @data, [$$step{ 'step' }, $$step{ 'done' }, $$step{ 'running' },  $$step{ 'queuing' },  $$step{ 'failed' }, $$step{ 'unknown' }, $$step{ 'time'}];
+    push @data, [$$step{ 'step' }, sprintf("%.2f", $$step{ 'run_time'}), $$step{ 'max_mem' },
+		 $$step{ 'done' }, $$step{ 'running' }, $$step{ 'queuing' },  
+		 $$step{ 'failed' }, $$step{ 'unknown' }, $$step{ 'time'}];
   }
 
 
-  unshift @data, ['Step', 'Done', 'Running', 'Queuing','Failed', 'Unknown'];
+  unshift @data, ['Step', 'Run time', 'Max memory', 'Done', 'Running', 'Queuing','Failed', 'Unknown'];
   
 
   print EASIH::HTML::advanced_table(\@data, 1, 0, 0, 'lightgrey', 0, '700px') . "<br>\n";
@@ -77,15 +88,17 @@ else {
 
   my %running_steps;
   foreach my $step ( CTRU::Pipeline::Tracker::fetch_running_steps()) {
-    push @{$running_steps{ $$step{name}}}, $$step{step};
+    push @{$running_steps{ $$step{run_name}}{$$step{thread_name}}}, $$step{step};
   }
 
   my @data;
   foreach my $progress (  @{$progresses} ) {
+
+    next if ( ! $running_steps{ $$progress{ run_name }}{$$progress{ thread_name }} );
     
     my $progress_indicator = "<progress value='$$progress{steps_done}' max='$$progress{steps_total}'></progress>";
     my $active_steps       = "-";
-    $active_steps       = join("/", @{$running_steps{ $$progress{ name }}}) if ( $running_steps{ $$progress{ name }} );
+    $active_steps       = join("/", @{$running_steps{ $$progress{ run_name }}{$$progress{ thread_name }}}) if ( $running_steps{ $$progress{ run_name }}{$$progress{ thread_name }} );
     unshift @data, ["<a href=?run_name=$$progress{run_name}> $$progress{run_name} </a>",
 		    "<a href=?thread_name=$$progress{thread_name}> $$progress{thread_name} </a>",
 		    $progress_indicator, $active_steps, $$progress{time}];
