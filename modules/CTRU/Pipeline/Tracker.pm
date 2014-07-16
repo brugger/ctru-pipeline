@@ -121,4 +121,33 @@ sub fetch_progresses {
 }
 
 
+
+# 
+# 
+# 
+# Kim Brugger (16 Jul 2014)
+sub fetch_run_name_status {
+  my ($run_name) = @_;
+
+  my $q = "select * from status_tracking where run_name = ? order by step_nr";
+  my $sth  = EASIH::DB::prepare($dbi, $q);
+  return EASIH::DB::fetch_array_hash( $dbi, $sth, $run_name);
+  
+}
+
+
+# 
+# 
+# 
+# Kim Brugger (16 Jul 2014)
+sub fetch_thread_name_status {
+  my ($thread_name) = @_;
+
+  my $q = "select * from status_tracking where thread_name = ? order by step_nr";
+  my $sth  = EASIH::DB::prepare($dbi, $q);
+  return EASIH::DB::fetch_array_hash( $dbi, $sth, $thread_name);
+  
+}
+
+
 1;
