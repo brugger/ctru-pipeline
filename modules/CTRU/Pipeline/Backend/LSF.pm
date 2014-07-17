@@ -106,12 +106,10 @@ sub job_status {
   close( $pipe );
   print "JOB_ID = $job_id, status == $status \n";
 
+  return $CTRU::Pipeline::UNKNOWN  if ( ! $status );
   return $CTRU::Pipeline::FAILED   if ( $status eq 'EXIT');
   return $CTRU::Pipeline::RUNNING  if ( $status eq 'RUN');
   return $CTRU::Pipeline::QUEUEING if ( $status eq 'PEND');
-
-
-  die if ( ! $status );
 
   if ( $status eq 'DONE' ) {
 
@@ -137,9 +135,11 @@ sub job_status {
 
 
     my ($max_mem, $avg_mem, $threads, $run_time);
-    if ( $bjobs_output =~ /MAX MEM: (\d+) Mbytes; AVG MEM: (\d+) Mbytes/ ) {
+    if ( $bjobs_output =~ /MAX MEM:\s+(\d+) Mbytes/ ) {
       $stats{ $job_id }{ 'memory' }     = $1 * 1_000_000;
-      $stats{ $job_id }{ 'avg_memory' } = $2 * 1_000_000;
+    }
+    if ( $bjobs_output =~ /MAX MEM:\s+(\d+.\d+) Gbytes/ ) {
+      $stats{ $job_id }{ 'memory' }     = $1 * 1_000_000_000;
     }
     
     if ( $bjobs_output =~ /The CPU time used is (\d+.\d+) seconds/ ) {
