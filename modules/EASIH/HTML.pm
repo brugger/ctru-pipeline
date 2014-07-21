@@ -6,10 +6,6 @@ package EASIH::HTML;
 # 
 # Kim Brugger (15 Jul 2011), contact: kim.brugger@easih.ac.uk
 
-use strict;
-
-use EASIH::HTML::forms;
-use EASIH::HTML::style;
 
 use CGI;
 

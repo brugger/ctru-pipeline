@@ -28,6 +28,10 @@ my $max_sleep_time =  300;
 my $sleep_start    =  $sleep_time;
 my $sleep_increase =  30; 
 
+
+$sleep_time = 10;
+$max_sleep_time = 10;
+
 my $current_logic_name;
 my $pre_jms_ids    = undef;
 my $use_storing    =   1; # debugging purposes
@@ -36,6 +40,7 @@ my @argv; # the argv from main is fetched at load time, and a copy kept here so 
 my $freeze_file;
 
 my $no_restart     =   0; # failed jobs that cannot be restarted. 
+my %thread_no_restart;
 my $restarted_run  =   0;
 
 # default dummy backend/logger that will fail gracefully, and the class that every other backend
@@ -264,7 +269,8 @@ sub args {
 sub set_project_name {
   my ($new_name) = @_;
   $project_name = $new_name;
-  $thread_name_hash{ $active_thread_id } = $project_name;
+  print "---------------------------PROJECT NAME $project_name \n";
+  $thread_name_hash{ 0 } = $new_name;
 }
 # Crap naming right now, will get it right later on.
 sub set_project {
@@ -359,7 +365,7 @@ sub logger {
 # 
 # Kim Brugger (23 Apr 2010)
 sub sleep_time {
-  $sleep_time = shift || 60;
+  $sleep_time = shift || 30;
 }
 
 
@@ -796,57 +802,71 @@ sub report_spinner {
 # Kim Brugger (24 Jun 2010)
 sub report2tracker {
 
-  my %res = ();
 
-  foreach my $jms_id ( fetch_jms_ids() ) {
-    my $logic_name   = $jms_hash{ $jms_id }{ logic_name};
-    my $status       = $jms_hash{ $jms_id }{ status }; 
-    my $project_name = $thread_name_hash{ $jms_hash{ $jms_id }{ thread_id }}; 
-    $res{$project_name}{ $logic_name }{ $status }++;
-    $res{$project_name}{ $logic_name }{ failed } += ($jms_hash{ $jms_id }{ failed } || 0 );
-   
-  }
+  print "Project-name $project_name :: " . Dumper( \%thread_name_hash ) ;
 
-  return if ( keys %res == 0);
+    my %res = ();
 
+    foreach my $jms_id ( fetch_jms_ids() ) {
+      my $logic_name   = $jms_hash{ $jms_id }{ logic_name};
+      my $status       = $jms_hash{ $jms_id }{ status }; 
+      my $thread_id    = $jms_hash{ $jms_id }{ thread_id }; 
+      $res{ $thread_id }{ $logic_name }{ $status }++;
+      $res{ $thread_id }{ $logic_name }{ failed } += ($jms_hash{ $jms_id }{ failed } || 0 );
+
+      my $job_id     = $jms_hash{ $jms_id }{ job_id }; 
+      
+      if ( $job_id != -1 ) {
+	my $memory = $backend->job_memory( $job_id ) || 0;
+	$res{ $thread_id }{ $logic_name }{ memory } = $memory if ( !$res{ $logic_name }{ memory } || $res{ $logic_name }{ memory } < $memory);
+	$res{ $thread_id }{ $logic_name }{ runtime } += $backend->job_runtime( $job_id ) || 0;
+      }
+      
+    }
+    
+    return if ( keys %res == 0);
+
+    print Dumper( \%res );
+    
 #  die Dumper( \%analysis_order );
 
-  my $total_steps = int(keys %analysis_order) - 1;
+    my $total_steps = int(keys %analysis_order) - 1;
+    
+    foreach my $thread_id ( keys %res ) {
+      my $finished_steps = 0;
+      foreach my $logic_name ( keys %{$res{ $thread_id }} ) {
 
-  foreach my $project_name ( keys %res ) {
-    my $finished_steps = 0;
-    foreach my $logic_name ( keys %{$res{ $project_name }} ) {
-
-      my $sub_other = ($res{ $project_name }{ $logic_name }{ $QUEUEING  } || 0);
-      $sub_other += ($res{ $project_name }{ $logic_name }{ $RESUBMITTED  } || 0);
-      $sub_other += ($res{ $project_name }{ $logic_name }{ $SUBMITTED  } || 0);
-
-      $finished_steps++
-	  if ( ! $res{ $project_name }{ $logic_name }{ $RUNNING } &&
-	       ! $res{ $project_name }{ $logic_name }{ $UNKNOWN } &&
-	       ! $sub_other);
+	my $sub_other = ($res{ $thread_id }{ $logic_name }{ $QUEUEING  } || 0);
+	$sub_other += ($res{ $thread_id }{ $logic_name }{ $RESUBMITTED  } || 0);
+	$sub_other += ($res{ $thread_id }{ $logic_name }{ $SUBMITTED  } || 0);
+	
+	$finished_steps++
+	    if ( ! $res{ $thread_id }{ $logic_name }{ $RUNNING } &&
+		 ! $res{ $thread_id }{ $logic_name }{ $UNKNOWN } &&
+		 ! $sub_other);
+	
 
 
-      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'done', $res{ $project_name }{ $logic_name }{ $FINISHED } || 0);
+	CTRU::Pipeline::Tracker::update_status( $project_name, $thread_name_hash{ $thread_id }, $logic_name, $analysis_order{ $logic_name },
+						$res{ $thread_id }{ $logic_name }{ runtime   } || "NA",
+						$res{ $thread_id }{ $logic_name }{ memory    } || "N/A",
+						$res{ $thread_id }{ $logic_name }{ $FINISHED } || 0,
+						$res{ $thread_id }{ $logic_name }{ $RUNNING }  || 0,
+						$sub_other                                        || 0, # queuing
+						$res{ $thread_id }{ $logic_name }{ $FAILED }   || 0,
+						$res{ $thread_id }{ $logic_name }{ $UNKNOWN }  || 0); 
 
-      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'running', $res{ $project_name }{ $logic_name }{ $RUNNING } || 0); 
-
-      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'queuing', $sub_other || 0); 
-
-      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'failed', $res{ $project_name }{ $logic_name }{ $FAILED } || 0); 
-
-      CTRU::Pipeline::Tracker::update_status($project_name, $logic_name, 'unknown', $res{ $project_name }{ $logic_name }{ $UNKNOWN } || 0); 
-
+      }
+      CTRU::Pipeline::Tracker::update_progress($project_name, $thread_name_hash{ $thread_id }, $finished_steps, $total_steps);
     }
+      
 
-
-    CTRU::Pipeline::Tracker::update_progress($project_name, $finished_steps, $total_steps);
-  
+      
 #    printf("$project_name ----------->>> %.2f %% done\n", $finished_steps*100/$total_steps);
 
 #    print "$finished_steps --> " . int(keys %analysis_order) . "\n";
 
-  }
+    
 
 
   
@@ -1086,6 +1106,7 @@ sub check_jobs {
       }
       else { 
 	$logger->warn("Cannot resubmit job ($jms_hash{ $jms_id }{ failed } < $max_retry)\n");
+	$thread_no_restart{ $active_thread_id }++;
 	$no_restart++;
       }
     }
@@ -1427,8 +1448,8 @@ sub run {
 
   while (1) {
 
-    $active_thread_id = 0;
-    $project_name = $thread_name_hash{ $active_thread_id };
+#    $active_thread_id = 0;
+#    $project_name = $thread_name_hash{ $active_thread_id };
 
     my ($started, $queued, $running ) = (0,0,0);
 
@@ -1455,7 +1476,7 @@ sub run {
 
         my $logic_name = $jms_hash{ $jms_id }{ logic_name };
 	$active_thread_id = $jms_hash{ $jms_id }{ thread_id };
-	$project_name = $thread_name_hash{ $active_thread_id };
+#	$project_name = $thread_name_hash{ $active_thread_id };
 
         if ( $jms_hash{ $jms_id }{ status } == $FINISHED ) {
 	  
@@ -1477,7 +1498,8 @@ sub run {
 
 	      $DB::single = 1;
 
-	      next if ( $no_restart );
+#	      next if (  $no_restart );
+	      next if ( $thread_no_restart{ $active_thread_id } );
 	      # we do not go further if new jobs has been started or is running.
 	      next if ( @retained_jobs > 0 );
 
