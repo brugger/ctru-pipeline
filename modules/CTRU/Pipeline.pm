@@ -40,6 +40,7 @@ my @argv; # the argv from main is fetched at load time, and a copy kept here so 
 my $freeze_file;
 
 my $no_restart     =   0; # failed jobs that cannot be restarted. 
+my %thread_no_restart;
 my $restarted_run  =   0;
 
 # default dummy backend/logger that will fail gracefully, and the class that every other backend
@@ -353,7 +354,7 @@ sub logger {
 # 
 # Kim Brugger (23 Apr 2010)
 sub sleep_time {
-  $sleep_time = shift || 60;
+  $sleep_time = shift || 30;
 }
 
 
@@ -1094,6 +1095,7 @@ sub check_jobs {
       }
       else { 
 	$logger->warn("Cannot resubmit job ($jms_hash{ $jms_id }{ failed } < $max_retry)\n");
+	$thread_no_restart{ $active_thread_id }++;
 	$no_restart++;
       }
     }
@@ -1489,11 +1491,15 @@ sub run {
 
 	      $DB::single = 1;
 
-	      next if ( $no_restart );
+#	      next if (  $no_restart );
+	      next if ( $thread_no_restart{ $active_thread_id } );
 	      # we do not go further if new jobs has been started or is running.
 	      next if ( @retained_jobs > 0 );
 
-	      next if (depends_on_active_jobs( $next_logic_name));
+	      if (depends_on_active_jobs( $next_logic_name)) {
+		print "Depends on a job to finish @ $next_logic_name \n";
+		next;
+	      }
 	      
 	      my @depends_on;
 	      foreach my $step ( keys %flow ) {
@@ -1505,8 +1511,8 @@ sub run {
 	      
 	      my @depend_jobs = fetch_jobs( @depends_on );
 	      
-	      #print "depends on" .Dumper( \@depends_on);
-	      #print "depend jobs" .Dumper( \@depend_jobs);
+#	      print "depends on" .Dumper( \@depends_on);
+#	      print "depend jobs" .Dumper( \@depend_jobs);
 	      my $all_threads_done = 1;
 	      foreach my $ljms_id ( @depend_jobs ) {
 		if ( $jms_hash{ $ljms_id }{ status } != $FINISHED ) {
