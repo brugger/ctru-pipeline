@@ -45,7 +45,12 @@ our $logger           = "CTRU::Pipeline::Log";
 
 
 my %thread_name_hash;
+
 our $project_name = "CPipe"; # What shows up in qstats
+our $queue_name   = "";
+our $project_id   = "";
+
+
 
 $thread_name_hash{0} = $project_name;
 
@@ -67,7 +72,6 @@ my $database_tracking = 0;
 our $cwd      = `pwd`;
 chomp($cwd);
 
-our $queue_name = "";
 
 my $username = scalar getpwuid $<;
 use Sys::Hostname;
@@ -262,6 +266,13 @@ sub set_project_name {
   $project_name = $new_name;
   $thread_name_hash{ $active_thread_id } = $project_name;
 }
+# Crap naming right now, will get it right later on.
+sub set_project {
+  my ( $new_name ) = @_;
+
+  $project_id = $new_name;
+}
+
 
 # 
 # 
@@ -1258,7 +1269,7 @@ sub fetch_jobs {
   foreach my $jms_id ( fetch_jms_ids() ) {    
     push @jobs, $jms_id 
 	if ( grep(/$jms_hash{ $jms_id }{ logic_name }/, @logic_names) && 
-	     $active_thread_id eq $jms_hash { $jms_id }{ thread_id });
+	     $active_thread_id == $jms_hash { $jms_id }{ thread_id });
   }
 
   return @jobs;
@@ -1373,7 +1384,7 @@ sub depends_on_active_jobs {
 
     if ( $dependency{ $jms_hash{ $jms_id }{ logic_name }}) {
       return 1 if ( $active_thread_id && $jms_hash{ $jms_id }{ thread_id } == $active_thread_id);
-      return 1 if ( ! $active_thread_id );
+      return 1 if ( $active_thread_id == 0); # Main thread id
     }
   }
   
@@ -1440,12 +1451,11 @@ sub run {
 
       foreach my $jms_id ( @active_jobs ) {
 
-	
 	next if ( ! $jms_hash{ $jms_id }{ tracking });
+
         my $logic_name = $jms_hash{ $jms_id }{ logic_name };
 	$active_thread_id = $jms_hash{ $jms_id }{ thread_id };
 	$project_name = $thread_name_hash{ $active_thread_id };
-
 
         if ( $jms_hash{ $jms_id }{ status } == $FINISHED ) {
 	  
@@ -1459,14 +1469,11 @@ sub run {
 
 	  foreach my $next_logic_name ( @next_logic_names ) {
 
-
 	    if ( $analysis{ $next_logic_name }{ sync }  || $analysis{ $next_logic_name }{ thread_sync }) { 
 
 	      $active_thread_id = 0 if ( $analysis{ $next_logic_name }{ sync });
 
-
-	      print "SYNC ACTIVE THREAD ID :: $active_thread_id\n";
-	      
+#	      print "SYNC ACTIVE THREAD ID :: $active_thread_id\n";
 
 	      $DB::single = 1;
 
@@ -1474,20 +1481,24 @@ sub run {
 	      # we do not go further if new jobs has been started or is running.
 	      next if ( @retained_jobs > 0 );
 
-	      next if (depends_on_active_jobs( $next_logic_name));
+	      if (depends_on_active_jobs( $next_logic_name)) {
+#		print "Depends on a job to finish @ $next_logic_name \n";
+		next;
+	      }
 	      
 	      my @depends_on;
 	      foreach my $step ( keys %flow ) {
-		foreach my $analysis ( @{$flow{ $step}} ) {
+		foreach my $analysis ( @{$flow{ $step }} ) {
 		  #print "$next_logic_name eq $analysis\n";
 		  push @depends_on, $step if ( $next_logic_name eq $analysis );
 		}
 	      }
 	      
+	      # active_thread_id aware...
 	      my @depend_jobs = fetch_jobs( @depends_on );
 	      
-	      #print "depends on" .Dumper( \@depends_on);
-	      #print "depend jobs" .Dumper( \@depend_jobs);
+#	      print "depends on:"  .Dumper( \@depends_on);
+#	      print "depend jobs:" .Dumper( \@depend_jobs);
 	      my $all_threads_done = 1;
 	      foreach my $ljms_id ( @depend_jobs ) {
 		if ( $jms_hash{ $ljms_id }{ status } != $FINISHED ) {
@@ -1498,8 +1509,8 @@ sub run {
 	      
 	      if ( $all_threads_done ) {
 		# collect inputs, and set their tracking to 0
-		my @inputs; my @jms_ids;
-
+		my @inputs; 
+		my @jms_ids;
 		
 		#print "hash " . Dumper( \%jms_hash );
 
