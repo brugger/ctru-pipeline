@@ -38,6 +38,7 @@ sub submit_job {
 
   $limit .= " -q $CTRU::Pipeline::queue_name " if ( $CTRU::Pipeline::queue_name && $CTRU::Pipeline::queue_name ne "");
 
+  system "mkdir tmp" if ( ! -d './tmp');
   my ($tmp_fh, $tmp_file) = File::Temp::tempfile(DIR => "./tmp" );
   close( $tmp_fh);
   system "rm $tmp_file";
