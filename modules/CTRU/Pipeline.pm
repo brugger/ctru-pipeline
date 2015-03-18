@@ -5,6 +5,21 @@ package CTRU::Pipeline;
 # 
 # Kim Brugger (23 Apr 2010), contact: kim.brugger@easih.ac.uk
 
+=head1 NAME
+
+ctru-pipeline/easih-pipeline
+
+=head1 SYNOPSIS
+
+
+
+
+=head1 AUTHOR
+
+Kim Brugger kbr@brugger.dk
+
+=cut
+
 use strict;
 use warnings;
 use Data::Dumper;
@@ -43,7 +58,7 @@ my $restarted_run  =   0;
 my $backend           = "CTRU::Pipeline::Backend";
 our $logger           = "CTRU::Pipeline::Log";
 
-our $project_name = "EPipe"; # What shows up in qstats
+our $run_name = "EPipe"; # What shows up in qstats
 
 
 my ($start_time, $end_time);
@@ -58,7 +73,8 @@ my $job_counter = 1; # This is for generating internal jms_id (JobManamentSystem
 our $cwd      = `pwd`;
 chomp($cwd);
 
-our $queue_name = "";
+our $queue_name   = "";
+our $project_name = "";
 
 my $username = scalar getpwuid $<;
 use Sys::Hostname;
@@ -91,8 +107,12 @@ my %flow;
 my @start_steps;
 
 
-# 
-# 
+=head2 successful
+
+  Usage    : checks to see if a pipeline run was sucessful or not
+  Returns  : returns 1 if the pipeline run was successful, otherwise 0
+  Args     : none
+=cut
 # 
 # Kim Brugger (15 Apr 2014)
 sub successful {
@@ -105,9 +125,12 @@ sub successful {
 
 
 
-# 
-# 
-# 
+=head2 max_jobs
+
+  Usage    : maximum number of jobs to run/submit a t any time time
+  Returns  : nothing
+  Args     : max jobs to do, integer 
+=cut
 # Kim Brugger (04 Jul 2012)
 sub max_jobs {
   my ($jobs) = @_;
@@ -119,9 +142,12 @@ sub max_jobs {
 
 
 
-# 
-# 
-# 
+=head2 set_queue
+
+  Usage    : What queue the jobs should be submitted to
+  Returns  : nothing
+  Args     : name of queue to use
+=cut
 # Kim Brugger (30 Oct 2013)
 sub set_queue {
   my ( $new_queue ) = @_;
@@ -130,10 +156,29 @@ sub set_queue {
   $queue_name = $new_queue;
 }
 
+=head2 set_project
 
-# 
-# 
-# 
+  Usage    : Some cluster systems need to set a project before running 
+  Returns  : nothing 
+  Args     : project name
+=cut
+sub set_project {
+  my ( $new_project ) = @_;
+  
+  return if ( ! $new_project );
+
+  $project_name = $new_project;
+}
+
+
+=head2 add_step
+
+  Usage    : Links two steps in the pipeline
+  Returns  : nothing 
+  Args     : previous step name
+           : next step name
+           : alias, so functions can be reused. Optially
+=cut
 # Kim Brugger (14 Jun 2012)
 sub add_step {
   my( $pre_name, $name, $function_name, $cluster_param) = @_;
@@ -147,9 +192,15 @@ sub add_step {
 }
 
 
-# 
-# 
-# 
+
+=head2 add_start_step
+
+  Usage    : the first step(s) of the pipeline. It is recommended just to have one!
+  Returns  : nothing 
+  Args     : function name
+           : alias so functions can be reused.
+
+=cut
 # Kim Brugger (14 Jun 2012)
 sub add_start_step {
   my( $name, $function_name, $cluster_param) = @_;
@@ -164,9 +215,14 @@ sub add_start_step {
 }
 
 
-# 
-# 
-# 
+=head2 add_merge_step
+
+  Usage    : waits for all upstream steps that link to this one to finish before starting
+  Returns  : nothing
+  Args     : previous step
+           : next step
+           : step alias, so one can reuse functions.
+=cut
 # Kim Brugger (14 Jun 2012)
 sub add_merge_step {
   my($pre_name, $name, $function_name, $cluster_param) = @_;
@@ -185,6 +241,12 @@ sub add_merge_step {
 
 
 
+=head2 args
+
+  Usage    : shows how the inital pipeline was called, used to check that a reset restore the arguements
+  Returns  : nothing
+  Args     : none
+=cut
 # 
 # show how the (inital) pipeline was called...
 # 
@@ -195,12 +257,19 @@ sub args {
 
 
 
+=head2 run_name
+
+  Usage    : sets the name to be displayed in the cluster queue listing software
+  Returns  : none
+  Args     : run name
+=cut
 # 
 # 
 # 
 # Kim Brugger (05 Jul 2013)
-sub set_project_name {
+sub run_name {
   my ($new_name) = @_;
+
   $project_name = $new_name;
 
   # SGE does not like integers as the run name, go figure, so let check for that and prefix if this is the case.
@@ -208,7 +277,29 @@ sub set_project_name {
   
 }
 
+=head2 sample_name
 
+  Usage    : sets the name to be displayed in the cluster queue listing software
+  Returns  : none
+  Args     : sample name
+=cut
+#
+#
+#
+# Kim Brugger (09 Jul 2013)
+sub sample_name {
+  my ($new_name) = @_;
+  $run_name = $new_name;
+}
+
+
+
+=head2 no_store
+
+  Usage    : dont store the tracking database, mainy for development and testing
+  Returns  : nothing
+  Args     : none
+=cut
 # 
 # disable the store function
 # 
@@ -234,6 +325,12 @@ sub fail {
 
 
 
+=head2 backend
+
+  Usage    : Select what backend to use
+  Returns  : nothing
+  Args     : backend name, either: Local, SGE or LSF
+=cut
 # 
 # 
 # 
@@ -260,6 +357,12 @@ sub backend {
 
 
 
+=head2 logger
+
+  Usage    : change the logging pluging from the default one. Easy way to add complex logging
+  Returns  : nothing
+  Args     : logger module
+=cut
 # 
 # 
 # 
@@ -272,6 +375,13 @@ sub logger {
 
 
 
+=head2 sleep_time
+
+  Usage    : change the default sleep time before checking on the running/queueing jobs. There are now a more 
+             advanced linear growth of sleep time if everything is queueing
+  Returns  : nothing
+  Args     : sleep time: integer
+=cut
 # 
 # 
 # 
@@ -291,6 +401,12 @@ sub save_interval {
 
 
 
+=head2 version
+
+  Usage    : returns the git sha1 tag for the framework, fails if this a not a clone git repository
+  Returns  : git sha1 for last commit
+  Args     : none
+=cut
 # 
 # 
 # 
@@ -332,6 +448,12 @@ sub check_n_store_state {
 }
 
 
+=head2
+
+  Usage    :
+  Returns  :
+  Args     :
+=cut
 # 
 # 
 # 
@@ -353,6 +475,16 @@ sub cwd {
 
 
 
+=head2 submit_system_job
+
+  Usage    : Rather than submit a job one knows is quickly done (eg mv file1 file2), this is done 
+             as a system call, but is still tracked 
+  Returns  : nothing, I think
+  Args     : command to execute
+           : argument to pass on to next step
+           : queue flags
+           : file(s) to delete if successful
+=cut
 # 
 # 
 # 
@@ -363,6 +495,16 @@ sub submit_system_job {
 }
 
 
+=head2 submit_job
+
+  Usage    : submit a job to the cluster using the selected backend
+  Returns  : nothing, I think
+  Args     : command to execute
+           : argument to pass on to next step
+           : queue flags
+           : file(s) to delete if successful
+
+=cut
 # 
 # submit a single job if $system is then a single system call is doing the work!
 # 
@@ -525,6 +667,12 @@ sub format_time {
 
 
 
+=head2 freeze_file
+
+  Usage    : file where the job tracking is stored.
+  Returns  : nothing 
+  Args     : filename to store data in
+=cut
 # 
 # 
 # 
@@ -918,7 +1066,6 @@ sub check_jobs {
 }
 
 
-
 # 
 # Hard ! resets the pipeline. If a analysis failed it is deleted and
 # pushed back to the previous step in the pipeline. If that job
@@ -980,6 +1127,15 @@ sub hard_reset {
   $restarted_run = 1;
 }
 
+
+=head2 reset
+
+
+  Usage    : reset the failed states, so the pipeline can run again
+  Returns  : nothing
+  Args     : none
+=cut
+
 # soft-reset... 
 # reset the failed states, so the pipeline can run again
 # 
@@ -1021,6 +1177,13 @@ sub reset {
 }
 
 
+=head2 tmp_file
+
+  Usage    : creates a tmp file in cwd/tmp
+  Returns  : tmp file name
+  Args     : post_fix 
+           : if the file should be keps during tmp file deletion
+=cut
 
 # 
 # 
@@ -1066,6 +1229,12 @@ sub next_analysis {
 
 
 
+=head2 delete_tmp_files
+
+  Usage    : delete all the tmp files created during the run
+  Returns  : nothing
+  Args     : none
+=cut
 
 # 
 # 
@@ -1214,6 +1383,12 @@ sub depends_on_active_jobs {
 
 
 
+=head2 run
+
+  Usage    : run the pipeline that was created.
+  Returns  : 1 for a successful run, 0 otherwise
+  Args     : none
+=cut
 
 # 
 # Main loop that does all the work.
@@ -1476,6 +1651,12 @@ sub function_module {
   return $module . "::" . $function;
 }
 
+=head2 print_flow
+
+  Usage    : prints to stdout the flow build
+  Returns  : nothing
+  Args     : 
+=cut
 
 # 
 # 
@@ -1548,6 +1729,12 @@ sub print_flow {
 }
 
 
+=head2 validate_flow
+
+  Usage    : check that all functions are defined
+  Returns  : ?
+  Args     : none
+=cut
 
 # 
 # 
@@ -1637,7 +1824,7 @@ sub store_state {
 	      start_time         => $start_time,
 	      username           => $username,
 	      host               => $host,
-	      project            => $project_name,
+	      run                => $run_name,
 	      
 	      stats              => $backend->stats,
 	      

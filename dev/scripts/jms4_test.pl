@@ -11,13 +11,15 @@ use Data::Dumper;
 
 use Getopt::Std;
 
-use lib '/software/packages/ctru-pipeline/modules';
+use lib '/software/congenica/packages/ctru-pipeline/modules';
 use CTRU::Pipeline;
 use CTRU::Pipeline::Misc;
 #use CTRU::Pipeline::Samtools;
 #use CTRU::Pipeline::Picard;
 
-my $executer = "/software/packages/ctru-pipeline/dev/dummies/local.pl";
+my $executer = "/software/congenica/packages/ctru-pipeline/dev/dummies/local.pl";
+
+CTRU::Pipeline::set_queue('congenica');
 
 
 CTRU::Pipeline::add_start_step('A', 'single');
@@ -41,14 +43,12 @@ getopts('R:', \%opts);
 #CTRU::Pipeline::print_flow('fastq-split');
 
 #CTRU::Pipeline::backend('Darwin');
-CTRU::Pipeline::backend('Local');
+CTRU::Pipeline::backend('LSF');
 #CTRU::Pipeline::backend('SGE');
 CTRU::Pipeline::max_retry(3);
 
 use lib '/software/packages/ctru-clinical/modules';
-use CTRU::ComplexLog;
-CTRU::Pipeline::logger('CTRU::ComplexLog');
-$CTRU::Pipeline::logger->level('fatal');
+$CTRU::Pipeline::logger->level('debug');
 
 if ( $opts{R} ) {
   &CTRU::Pipeline::reset($opts{R});
