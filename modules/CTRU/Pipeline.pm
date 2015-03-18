@@ -31,7 +31,7 @@ use Carp;
 use CTRU::Pipeline::Backend;
 use CTRU::Pipeline::Log;
 
-my $VERSION        = "1.1";
+my $VERSION        = "1.2";
 
 my $last_save      =   0;
 my $save_interval  = 300;
