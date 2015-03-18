@@ -23,10 +23,10 @@ my $save_interval  = 300;
 my $max_retry      =   3;
 my $jobs_submitted =   0;
 
-my $sleep_time     =   5;
+my $sleep_time     =  30;
 my $max_sleep_time = 300;
-my $sleep_start    =   5;
-my $sleep_increase =  15; 
+my $sleep_start    =  30;
+my $sleep_increase =  30; 
 
 my $current_logic_name;
 my $pre_jms_ids    = undef;
@@ -202,6 +202,9 @@ sub args {
 sub set_project_name {
   my ($new_name) = @_;
   $project_name = $new_name;
+
+  # SGE does not like integers as the run name, go figure, so let check for that and prefix if this is the case.
+  $project_name = "CP-$project_name" if ( $project_name =~ /^\d+\z/ );
   
 }
 
@@ -1357,13 +1360,11 @@ sub run {
       }
     }
 
-
     while ( $max_jobs > 0 && $jobs_submitted < $max_jobs && @retained_jobs ) {
       my $params = shift @retained_jobs;
       submit_job(@$params);
       $started++;
     }
-
 
     check_n_store_state();
 #    system('clear');
@@ -1373,12 +1374,12 @@ sub run {
 
     # Increase sleeping if there are no jobs running. Should decrease the head node load when running a-ton-of-jobs (tm)
     $sleep_time += $sleep_increase
-	if (  ! $running && $sleep_time < $max_sleep_time);
+	if ( $sleep_time < $max_sleep_time );
 
     $sleep_time = $sleep_start
-	if (  $running );
+	if (  $running || $started );
 
-#    print STDERR "SLEEP TIME: $sleep_time; 	if (  ! $running && $queued && ! $started && ($sleep_time < $max_sleep_time));\n";
+#    print STDERR "SLEEP TIME: $sleep_time; 	if (  ! $running (running) && $queued (queued) && ! $started (started) && ($sleep_time (sleep_time) < $max_sleep_time (max_sleep) ));\n";
 
     sleep ( $sleep_time );
     check_jobs();
