@@ -33,6 +33,7 @@ sub submit_job {
 #  my $tries = 3;
 # RERUN:
 
+  system "mkdir tmp" if ( ! -d './tmp');
   my ($tmp_fh, $tmp_file) = File::Temp::tempfile(DIR => "./tmp" );
   $tmp_file .= ".darwin";
   open (my $qpipe, " | qsub $limit > $tmp_file 2> /dev/null ") || die "Could not open qsub-pipe: $!\n";

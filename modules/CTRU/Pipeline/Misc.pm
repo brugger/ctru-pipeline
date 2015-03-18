@@ -26,6 +26,7 @@ sub find_program {
 #	       "/home/cjp64/bin/",
 #	       "/home/cjp64/git/easih-toolbox/scripts/",
 	       "/home/kb468/bin/",
+	       "/software/bin/",
 	       "/home/kb468/easih-toolbox/scripts/",
 	       "/usr/local/bin");
   
