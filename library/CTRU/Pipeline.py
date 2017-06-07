@@ -1,124 +1,119 @@
-package CTRU::Pipeline;
-# 
-# JobManagementSystem framework for running pipelines everywhere!
+#!/usr/bin/python
 # 
 # 
-# Kim Brugger (23 Apr 2010), contact: kim.brugger@easih.ac.uk
+# 
+# 
+# Kim Brugger (06 Jun 2017), contact: kim@brugger.dk
 
-use strict;
-use warnings;
-use Data::Dumper;
-use Storable;
-use File::Temp;
-use Time::HiRes;
-use Carp;
+import sys
+import re
 
-use CTRU::Pipeline::Backend;
-use CTRU::Pipeline::Log;
-
-my $VERSION        = "1.1";
-
-my $last_save      =   0;
-my $save_interval  = 300;
-my $max_retry      =   3;
-my $jobs_submitted =   0;
-
-my $sleep_time     =   30;
-my $max_sleep_time =  300;
-my $sleep_start    =  $sleep_time;
-my $sleep_increase =  30; 
+import time
+import os
+import pprint as pp
 
 
-$sleep_time = 10;
-$max_sleep_time = 10;
+import  CTRU.Pipeline.Backend as Backend
 
-my $current_logic_name;
-my $pre_jms_ids    = undef;
-my $use_storing    =   1; # debugging purposes
-my $max_jobs       =  -1; # to control that we do not flood Darwin, or if local, block the machine. -1 is no limit
-my @argv; # the argv from main is fetched at load time, and a copy kept here so we can store it later
-my $freeze_file;
+VERSION        = "1.1"
 
-my $no_restart     =   0; # failed jobs that cannot be restarted. 
-my %thread_no_restart;
-my $restarted_run  =   0;
+last_save      =   0
+save_interval  = 300
+max_retry      =   3
+jobs_submitted =   0
+
+sleep_time     =   30
+max_sleep_time =  300
+sleep_start    =  sleep_time
+sleep_increase =  30
+
+
+sleep_time = 10
+max_sleep_time = 10
+current_logic_name = None
+pre_jms_ids    = None
+use_storing    =   1 # debugging purposes
+max_jobs       =  -1 # to control that we do not flood Darwin, or if local, block the machine. -1 is no limit
+argv = None  # the argv from main is fetched at load time, and a copy kept here so we can store it later
+freeze_file = None
+
+no_restart     =   0 # failed jobs that cannot be restarted. 
+thread_no_restart = None
+restarted_run  =   0
 
 # default dummy backend/logger that will fail gracefully, and the class that every other backend
 # should inherit from.
-my $backend           = "CTRU::Pipeline::Backend";
-our $logger           = "CTRU::Pipeline::Log";
+backend           = "CTRU::Pipeline::Backend"
+logger           = "CTRU::Pipeline::Log"
 
 
-my %thread_name_hash;
+thread_name_hash = {}
 
-our $project_name = "CPipe"; # What shows up in qstats
-our $queue_name   = "";
-our $project_id   = "";
-
-
-
-$thread_name_hash{0} = $project_name;
+project_name = "CPipe" # What shows up in qstats
+queue_name   = ""
+project_id   = ""
 
 
-my ($start_time, $end_time);
-my @delete_files;
-my %jms_hash;
 
-my @retained_jobs;
-my %analysis_order;
+thread_name_hash[ 0 ] = project_name
 
-my $job_counter    = 1; # This is for generating internal jms_id (JobManamentSystem_Id)
+start_time = None
+end_time   = None
+delete_files = []
 
-my $thread_counter = 0; # This is for generating internal thread_id 
-my $active_thread_id = 0;
-
-my $database_tracking = 0;
-
-our $cwd      = `pwd`;
-chomp($cwd);
+jms_hash = {}
 
 
-my $username = scalar getpwuid $<;
-use Sys::Hostname;
-my $host = hostname;
+retained_jobs = []
+analysis_order = {}
+
+job_counter      = 1 # This is for generating internal jms_id (JobManamentSystem_Id)
+
+thread_counter   = 0 # This is for generating internal thread_id 
+active_thread_id = 0
+
+cwd      = "./"
 
 
-my %dependencies;
-
-our $FINISHED    = "".   1;
-our $FAILED      = "".   2;
-our $RUNNING     = "".   3;
-our $QUEUEING    = "".   4;
-our $RESUBMITTED = "".   5;
-our $SUBMITTED   = "".   6;
-our $KILLED      = "".  99;
-our $UNKNOWN     = "". 100;
-
-my %s2status = ( 1   =>  "Finished",
-		 2   =>  "Failed",
-		 3   =>  "Running",
-		 4   =>  "Queueing",
-		 5   =>  "Resubmitted",
-		 6   =>  "Submitted",
-		 100 =>  "Unknown");
+#my $username = scalar getpwuid $<;
 
 
-my %analysis;
-my %flow;
+dependencies = {}
 
-my @start_steps;
+FINISHED    =    1
+FAILED      =    2
+RUNNING     =    3
+QUEUEING    =    4
+RESUBMITTED =    5
+SUBMITTED   =    6
+KILLED      =   99
+UNKNOWN     =  100
+
+s2status = { 1   :  "Finished",
+             2   :  "Failed",
+             3   :  "Running",
+             4   :  "Queueing",
+             5   :  "Resubmitted",
+             6   :  "Submitted",
+             100 :  "Unknown"}
+
+
+analysis = {}
+flow     = {}
+
+start_steps = []
 
 
 # 
 # 
 # 
 # Kim Brugger (03 Sep 2015)
-def successful:
+def successful():
 
     global no_restart
 
     # All jobs finished as expected!
-    if ( ! no_restart):
+    if ( not no_restart):
         return 1 
 
     return 0
@@ -132,7 +127,6 @@ def max_jobs( jobs = -1):
 
     global max_jobs
     max_jobs = jobs
-
 
 
 
@@ -150,9 +144,9 @@ def set_queue( new_queue=''):
 # 
 # 
 # Kim Brugger (14 Jun 2012)
-def next_step( prename="", name="", function_name="", cluster_param=""):
+def next_step( prename="", name="", function_name="", cluster_param=None):
 
-    if ( ! $function_name ):
+    if ( function_name is None or function_name == "" ):
         function_name = name
 
 
@@ -171,7 +165,7 @@ def next_step( prename="", name="", function_name="", cluster_param=""):
 # Old wrapper function...
 # 
 # Kim Brugger (03 Sep 2015)
-def add_step( prename="", name="", function_name="", cluster_param=""):
+def add_step( prename="", name="", function_name="", cluster_param=None):
     next_step(prename, name, function_name, cluster_param_);
 
 
@@ -180,9 +174,9 @@ def add_step( prename="", name="", function_name="", cluster_param=""):
 # 
 # 
 # Kim Brugger (03 Sep 2015)
-def start_step(name="", function_name="", cluster_param = ""):
+def start_step(name="", function_name="", cluster_param = None):
 
-    if ( ! $function_name ):
+    if ( function_name is None or function_name == "" ):
         function_name = name
 
 
@@ -199,7 +193,7 @@ def start_step(name="", function_name="", cluster_param = ""):
 # Old wrapper...
 # 
 # Kim Brugger (03 Sep 2015)
-def add_start_step(name="", function_name="", cluster_param = ""):
+def add_start_step(name="", function_name="", cluster_param = None):
     start_step(name, function_name, cluster_param);
 
 
@@ -207,10 +201,10 @@ def add_start_step(name="", function_name="", cluster_param = ""):
 # 
 # 
 # Kim Brugger (14 Jun 2012)
-def merge_step(pre_name="", name="", function_name="", cluster_param=""):
+def merge_step(pre_name="", name="", function_name="", cluster_param=None):
 
 
-    if ( ! $function_name ):
+    if ( function_name is None or function_name == "" ):
         function_name = name
 
 
@@ -239,10 +233,10 @@ def add_merge_step(pre_name="", name="", function_name="", cluster_param=""):
 # 
 # 
 # Kim Brugger (03 Sep 2015)
-def thread_merge_step(pre_name="", name="", function_name="", cluster_param=""):
+def thread_merge_step(pre_name="", name="", function_name="", cluster_param=None):
 
 
-    if ( ! $function_name ):
+    if ( function_name is None or function_name == "" ):
         function_name = name
 
 
@@ -262,10 +256,13 @@ def thread_merge_step(pre_name="", name="", function_name="", cluster_param=""):
 # 
 # 
 # Kim Brugger (03 Sep 2015)
-def set_project_name( new_name = ""):
+def set_project_name( new_name = None):
 
     global project_name
-    project_name = new_name
+
+    if ( new_name is not None):
+        project_name = new_name
+
     print "---------------------------PROJECT NAME " + project_name
 
     # I am not sure about this thing. Should have used a better
@@ -279,10 +276,11 @@ def set_project_name( new_name = ""):
 #
 #
 # Kim Brugger (03 Sep 2015)
-def set_project( new_name="" ):
+def set_project( new_name=None ):
     global project_id
 
-    project_id = new_name
+    if ( new_name is not None):
+        project_id = new_name
 
 
 # 
@@ -307,7 +305,7 @@ def database_tracking(dbname = "", dbhost="", dbuser="", dbpass=""):
 # disable the store function
 # 
 # Kim Brugger (03 Sep 2015)
-def no_store:
+def no_store():
 
     global use_storing
     use_storing = 0
@@ -331,16 +329,13 @@ def fail( messsage=""):
 # Kim Brugger (03 Sep 2015)
 def backend( backend = 'Local'):
 
-    try:
-        import "ctru." + backend
-    else:
-        print backend + " backend is not suported!!! "
-        exit()
+#    try:
+#        import "ctru.". backend
+#    else:
+#        print backend . " backend is not suported!!! "
+#        exit()
 
-
-
-
-
+    pass
 
 # 
 # 
@@ -376,13 +371,18 @@ def version():
 # The inverval of this happening is set with save_interval
 #
 # Kim Brugger (04 May 2010)
-sub check_n_store_state {
+def check_n_store_state():
 
-  return if ( $save_interval == -1 );
+    if ( save_interval == -1):
+        return
   
-  my $now = Time::HiRes::gettimeofday();
-  store_state() if ($now - $last_save > $save_interval );
-}
+    global last_save
+    global save_interval
+
+    now = time.time()
+    if ( now - last_save > save_interval):
+        store_state()
+
 
 
 # 
@@ -401,10 +401,10 @@ def max_retry( new_max_retry = 0):
 # Setting the working directory, if different than the cwd
 # 
 # Kim Brugger (23 Apr 2010)
-sub cwd {
-  my ($new_cwd) = @_;
-  $cwd = $new_cwd;
-}
+def cwd( new_cwd = None):
+
+  if ( new_cwd is not None ):
+      cwd = new_cwd
 
 
 
@@ -421,7 +421,7 @@ def new_thread_id( name = ""):
   
 
 
-    global active_thread_id = 
+    global active_thread_id 
     global thread_counter
     global thread_name_hash
 
@@ -437,8 +437,8 @@ def new_thread_id( name = ""):
 # 
 # 
 # Kim Brugger (03 Sep 2015)
-def get_thread_id()
-  return active_thread_id
+def get_thread_id():
+    return active_thread_id
 
 
 # 
@@ -446,90 +446,96 @@ def get_thread_id()
 # 
 # Kim Brugger (03 Sep 2015)
 def submit_system_job( cmd, output, limit, delete_file=0):
-  submit_job(cmd, output, limit, delete_file, 1);
+    submit_job(cmd, output, limit, delete_file, 1)
 
 
 # 
 # submit a single job if $system is then a single system call is doing the work!
 # 
 # Kim Brugger (22 Apr 2010)
-sub submit_job {
-  my ($cmd, $output, $limit, $delete_file, $system) = @_;
+def submit_job(cmd=None, output=None, limit=None, delete_file=None, system=None):
 
 #  print "  my ($cmd, $output, $limit, $delete_file, $thread_id, $system) = @_;\n";
 
 #  print "submit_job  - ACTIVE THREAD_ID: $active_thread_id\n";
 
-  if ( ! $cmd ) {
-     Carp::confess(" no cmd given\n");
-  }
+  if (  cmd is None ):
+      print "no command provided";
+      exit()
 
-  if (@retained_jobs && $max_jobs > 0 && $max_jobs > $jobs_submitted) {
-    push @retained_jobs, [ $cmd, $output, $limit, $system, $current_logic_name];
-    my $params = shift @retained_jobs;
-    $logger->debug("Queued/unqueued a job ( ". @retained_jobs . " jobs retained)\n");
-    ($cmd, $output, $current_logic_name)= (@$params);
-    $logger->debug(" PARAMS :::     ($cmd, $output, $current_logic_name) \n");
-  }
-  elsif ($max_jobs > 0 && $max_jobs <= $jobs_submitted ) {
-    push @retained_jobs, [ $cmd, $output, $limit, $system, $current_logic_name];
-    $logger->debug("Retained a job ( ". @retained_jobs . " jobs retained)\n");
-    return;
-  };
+  if ( len( retained_jobs ) and max_jobs > 0 and max_jobs > jobs_sumitted):
 
-  my $jms_id = $job_counter++;
-  my $instance = { status      => $SUBMITTED,
-		   tracking    => 1,
-		   command     => $cmd,
-		   output      => $output,
-		   limit       => $limit,
-		   logic_name  => $current_logic_name,
-		   pre_jms_ids => $pre_jms_ids,
-		   delete_file => $delete_file,
-		   thread_id   => $active_thread_id };
+       retained_jobs.append( [ cmd, output, limit, system, current_logic_name])
+
+       params = retained_jobs.pop()
+       
+#    $logger->debug("Queued/unqueued a job ( ". @retained_jobs . " jobs retained)\n");
+       (cmd, output, current_logic_name)= list(params)
+#    $logger->debug(" PARAMS :::     ($cmd, $output, $current_logic_name) \n");
+
+  elif (max_jobs > 0 and max_jobs <= jobs_submitted ):
+      
+      retained_jobs.append( [ cmd, output, limit, system, current_logic_name])
+      return
 
 
-  if ( $system ) {
-    eval { system "$cmd" };
-    $$instance{ job_id } = -1;
-    if ( ! $@ ) {
-      $$instance{ status } = $FINISHED;
-    }
-    else {
-      $logger->debug("$@\n");
-      $$instance{ status } = $FAILED;
-    }
-  }
-  else {
+  global job_counter
+  job_counter += 1
 
-    my $job_id = $backend->submit_job( "cd $cwd;$cmd", $limit);
+  jms_id = job_counter
+
+  instance = {     'status'      : SUBMITTED,
+		   'tracking'    : 1,
+		   'command'     : cmd,
+		   'output'      : output,
+		   'limit'       : limit,
+		   'logic_name'  : current_logic_name,
+		   'pre_jms_ids' : pre_jms_ids,
+		   'delete_file' : delete_file,
+		   'thread_id'   : active_thread_id }
+
+
+  if ( system is not None and system ):
+
+#    eval { system "$cmd" };
+
+    instance[ job_id ] = -1;
+
+  #   if ( ! $@ ) {
+  #     $$instance{ status } = $FINISHED;
+  #   }
+  #   else {
+  #     $logger->debug("$@\n");
+  #     $$instance{ status } = $FAILED;
+  #   }
+  # }
+  else:
+
+#    job_id = backend->submit_job( "cd $cwd;$cmd", limit);
     
-    $$instance{ job_id } = $job_id;
-  }    
+    instance[ job_id ] = job_id;
+ 
+
+  jms_hash[ jms_id ]  = instance
+  jobs_submitted += 1  
+
+#  $logger->debug( $jms_hash{ $jms_id } );
+
+  # $logger->info( { 'type'       => "runtime_stats",
+  #       	   'logic_name' => $jms_hash{ $jms_id }{ 'logic_name'}, 
+  #       	   'job_id'     => $jms_hash{ $jms_id }{ 'job_id'    }, 
+  #       	   "status"     => "STARTED",
+  #       	   "command"    => $jms_hash{ $jms_id }{ 'command'   },
+  #       	   "output"     => $jms_hash{ $jms_id }{ 'output'    },
+  #       	   "limit"      => $jms_hash{ $jms_id }{ 'limit'     },
+  #       	   "thread_id"  => $active_thread_id,
+  #       	 });
 
 
-  $jms_hash{ $jms_id }  = $instance;
-  $jobs_submitted++;  
+  for pre_jms_id in list( pre_jms_ids ) :
+      if pre_jms_id is not None:
+          jms_hash[ pre_jms_id ][ post_jms_id ].append( jms_id );
 
-  $logger->debug( $jms_hash{ $jms_id } );
-
-  $logger->info( { 'type'       => "runtime_stats",
-		   'logic_name' => $jms_hash{ $jms_id }{ 'logic_name'}, 
-		   'job_id'     => $jms_hash{ $jms_id }{ 'job_id'    }, 
-		   "status"     => "STARTED",
-		   "command"    => $jms_hash{ $jms_id }{ 'command'   },
-		   "output"     => $jms_hash{ $jms_id }{ 'output'    },
-		   "limit"      => $jms_hash{ $jms_id }{ 'limit'     },
-		   "thread_id"  => $active_thread_id,
-		 });
-
-
-  foreach my $pre_jms_id ( @$pre_jms_ids) {
-    push @{$jms_hash{ $pre_jms_id }{ post_jms_id }}, $jms_id if ( $pre_jms_id );
-  }
-
-#  $active_thread_id = 0;
-}
 
 
 
@@ -537,21 +543,20 @@ sub submit_job {
 # 
 # 
 # Kim Brugger (26 Apr 2010)
-sub resubmit_job {
-  my ( $jms_id ) = @_;
+def resubmit_job( jms_id ):
 
-  my $instance   = $jms_hash{ $jms_id };
-  my $logic_name = $$instance{logic_name};
+    
 
-  my $job_id = $backend->submit_job( $$instance{ command }, $$instance{ limit });
+  instance   = jms_hash[ jms_id     ]
+  logic_name = instance[ logic_name ];
+
+  job_id = backend.submit_job( instance[ command ], instance[ limit ]);
   
-  $$instance{ job_id }   = $job_id;
-  $$instance{ status }   = $RESUBMITTED;
-  $$instance{ tracking } = 1;
-  $jobs_submitted++;      
+  instance[ job_id   ]   = job_id
+  instance[ status   ]   = RESUBMITTED;
+  instance[ tracking ]   = 1
+  jobs_submitted += 1      
 
-
-}
 
 
 
@@ -559,42 +564,34 @@ sub resubmit_job {
 # 
 # 
 # Kim Brugger (24 Jun 2010)
-sub killall {
+def killall():
 
-  foreach my $jms_id ( fetch_jms_ids() ) {
-    my $status     = $jms_hash{ $jms_id }{ status };
+  for jms_id  in  fetch_jms_ids():
+      status     = jms_hash[ jms_id ][ 'status' ];
     
-    if ( $status != $FINISHED ) {
-      $backend->kill(  $jms_hash{ $jms_id}{ job_id } );
-    }
-  }
-}
+      if ( status != FINISHED ):
+          backend.kill(  jms_hash[ jms_id ][ job_id ])
 
 
 # 
 # 
 # 
 # Kim Brugger (05 Jul 2010)
-sub format_memory {
-  my ( $memory ) = @_;
+def format_memory( memory = None) :
 
-  if ( ! defined $memory ) {
-    return "N/A";
-  }
-  else {
-    if ($memory > 1000000000 ) {
-      return sprintf("%.2fGB",$memory / 1000000000);
-    }
-    elsif ($memory  > 1000000 ) {
-      return sprintf("%.2fMB",$memory / 1000000);
-    }
-    elsif ($memory  > 1000 ) {
-      return sprintf("%.2fKB",$memory / 1000);
-    }
-  }
+  if ( memory is None or memory == ""):
+      return "N/A"
+  else:
+      memory = int( memory )
+
+      if ( memory > 1000000000 ):
+          return "%.2fGB" % ( memory / 1000000000.0);
+      elif (memory  > 1000000 ):
+          return "%.2fMB" % ( memory / 1000000.0 );
+      elif (memory  > 1000 ):
+          return "%.2fKB" % (memory / 1000.0);
   
-  return "N/A";
-}
+  return memory
 
 
 
@@ -602,20 +599,20 @@ sub format_memory {
 # 
 # 
 # Kim Brugger (05 Jul 2010)
-sub format_time {
-  my ( $runtime ) = @_;
+# def format_time( runtime):
+#   my ( $runtime ) = @_;
   
-  return "N/A" if ( ! defined $runtime);
+#   return "N/A" if ( ! defined $runtime);
 
-  my $res;
-  my ($hour, $min, $sec) = (0,0,0);
-  $hour = int( $runtime / 3600);
-  $runtime -= 3600*$hour; 
-  $min = int( $runtime / 60);
-  $runtime -= 60*$min;
-  $sec = int( $runtime );
-  return sprintf("%02d:%02d:%02d", $hour, $min, $sec);
-}
+#   my $res;
+#   my ($hour, $min, $sec) = (0,0,0);
+#   $hour = int( $runtime / 3600);
+#   $runtime -= 3600*$hour; 
+#   $min = int( $runtime / 60);
+#   $runtime -= 60*$min;
+#   $sec = int( $runtime );
+#   return sprintf("%02d:%02d:%02d", $hour, $min, $sec);
+# }
 
 
 
