@@ -217,12 +217,7 @@ class Step_manager( object ):
         return res
 
 
-
-
-
     def print_flow(self, starts = None ):
-
-#        pp.pprint( self )
 
         if starts is None:
             
@@ -233,15 +228,10 @@ class Step_manager( object ):
         for start in starts:
             self.calc_analysis_dependencies( start )
 
-#        pp.pprint( self )
-
 
         print("")
         print( "Starting with: {} ".format( starts ))
         print( "--------------------------------------------------\n")
-
-        
-#        pp.pprint( self._step_dependencies )
 
         steps = starts
         
@@ -266,8 +256,6 @@ class Step_manager( object ):
 
 
     def set_step_dependency(self, step, dependency):
-
-#        print( "Set deps {} -> {}".format( step, dependency ))
 
         if step not in self._step_dependencies:
             self._step_dependencies[ step ] = []
