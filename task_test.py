@@ -13,22 +13,27 @@ pp = pprint.PrettyPrinter(indent=4)
 
 from ccbg_pipeline import *
 
-print task_status.SUBMITTED
+#print task_status.SUBMITTED
 
 P = Pipeline()
-P.max_retry( 5 )
-print ( P.max_retry(  ) )
+pp.pprint( P )
+print ("Max retry: {}".format( P.max_retry ) )
+P.max_retry = 5 
+print ("Max retry: {}".format( P.max_retry ) )
+
+def a():
+    print "A"
 
 
-step_a = P.start_step("b", 'fb')
-step_a = P.start_step("a", 'fa').next("b", 'fbc').next("c", "fcf")
-
-def test():
-    pass
+def b():
+    print "B"
 
 
-func = test
+def c():
+    print "C"
 
-print func.__name__
+
+step_a = P.start_step( a ).next( b ).next( c )
+
 
 P.print_flow()
