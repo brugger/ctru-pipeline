@@ -148,7 +148,7 @@ class Step_manager( object ):
         res  = "\n\nTask manager dump::\n"
         res += "-----------------------\n\n"
 
-        res += "Star steps:\n"
+        res += "Start steps:\n"
         res += pp.pformat(self._start_steps )+"\n"
 
         res += "Steps:\n"
@@ -182,20 +182,39 @@ class Step_manager( object ):
         self._step_flow[ step1 ].append( step2 )
 
     def next_steps( self, step):
-        
+
+#        print ("Nxt step for: ", type(step), step )
+
         if type( step ) is 'str':
             step = self._step_index( step )
 
         if step not in self._step_flow:
             return None
 
-        return self._step_flow[ step ]
+#        pp.pprint( self._step_flow[ step ] )
+
+        # Otherwise it will return a pointer to the list, and as I pop
+        # from this list later on it ruins everything
+        return self._step_flow[ step ][:]
 
     def step_by_name( self, name):
         if name not in self._rev_step:
             return None
 
-        return _steps[ self._step_index[ name ]]
+        return self._steps[ self._step_index[ name ]]
+
+
+    def steps_by_name( self, names=[]):
+
+        res = []
+
+        for name in names:
+            if name not in self._rev_step:
+                print( "Unknown step name: {}".format( name ))
+            else:
+                res.append( _steps[ self._step_index[ name ]] )
+
+        return res
 
 
 
@@ -203,66 +222,52 @@ class Step_manager( object ):
 
     def print_flow(self, starts = None ):
 
+#        pp.pprint( self )
 
         if starts is None:
             
             starts = self._start_steps
+        else:
+            start = self.steps_by_name( starts )
+
+        for start in starts:
+            self.calc_analysis_dependencies( start )
+
+#        pp.pprint( self )
+
 
         print("")
         print( "Starting with: {} ".format( starts ))
         print( "--------------------------------------------------\n")
 
-        analyses = []
-
-        for start in starts:
-            self.calc_analysis_dependencies( start )
-
-        print( "Deps : ")
-        pp.pprint( self._step_dependencies )
-
-        step_names = starts
         
+#        pp.pprint( self._step_dependencies )
 
-        while step_names:
+        steps = starts
+        
+        while steps:
+            step = steps.pop()
+            next_steps = self.next_steps( step )
 
-            step_name = step_names.pop()
-            print( "{} queue: ".format( step_name, step_names))
+            print( "{} queue: {}".format( step.name, next_steps))
   
-            analyses.append( step_name )
-
-            if step_name.name not in self._analysis:
-                print( "No information on {} in the analysis dict\n".format( step_name ))
-                exit()
-            else:
-                function = self._analysis[ step_name.name ][ 'function' ]
-
-
-                next_steps = self.next_steps( step_name )
-      
-
-            if ( next_steps ):
-      
+            if next_steps is not None:
                 for next_step in next_steps:
 
-      
-                    if self._analysis[ next_step.name ][ 'sync' ]:
-                        print( "{} --> {} (Synced!!)\n".format( step_name, next_step.name))
-                    elif self._analysis[ next_step.name ][ 'tread_sync' ]:
-                        print( "{} --> {} (Thread_synced!!)\n".format( current_logic_name, next_step.name))
+                    if step.step_type is None:
+                        print( "{} --> {}\n".format( step.name, next_step.name))
                     else:
-                        print( "{} --> {}\n".format( step_name, next_step.name))
+                        print( "{} --> {} {}\n".format( step.name, next_step.name, step.step_type))
 
-                    if ( waiting_for_analysis(step_name, analyses)):
-                        pass
-                    else:
-                        logic_names.append( next_step )
+
+                steps += next_steps
 
         print( "--------------------------------------------------\n")
 
 
     def set_step_dependency(self, step, dependency):
 
-        print( "Set deps {} -> {}".format( step, dependency ))
+#        print( "Set deps {} -> {}".format( step, dependency ))
 
         if step not in self._step_dependencies:
             self._step_dependencies[ step ] = []
@@ -408,11 +413,6 @@ class Pipeline( object ):
             else:
                 name = "{}.{}".format( function.__module__, function.__name__)
 
-    
-        if ( step_type is not None ):
-            self._analysis[ name ][ step_type ] = 1
-            print("Step type: {}-{} type:{}".format(prev_step, name, step_type))
-            pp.pprint ( self._analysis )
 
 
         step = Step( pipeline = self,
