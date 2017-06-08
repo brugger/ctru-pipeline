@@ -21,7 +21,15 @@ print ( P.max_retry(  ) )
 
 A = P.start_step("a", 'fa')
 
-B = A.next_step("b", 'fbc')
-B.next_step("c", 'fbf')
+B = A.next_step("b", 'fbc').next_step("c", "fcf")
+#B.next_step("c", 'fbf')
+
+def test():
+    pass
+
+
+func = test
+
+print func.__name__
 
 P.print_flow()

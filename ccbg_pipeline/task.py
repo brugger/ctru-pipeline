@@ -232,8 +232,6 @@ class Pipeline( object ):
     # Generic step adder, wrapped in the few functions below it
     def add_step( self, prename, name, function, cluster_param = None, step_type = None):
     
-
-
         if ( step_type is not None ):
             self._analysis[ name ][ step_type ] = 1
             print("Step type: {}-{} type:{}".format(prename, name, step_type))
