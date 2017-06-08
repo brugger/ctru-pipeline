@@ -16,13 +16,12 @@ from ccbg_pipeline import *
 print task_status.SUBMITTED
 
 P = Pipeline()
-print P.max_retry( 5 )
+P.max_retry( 5 )
 print ( P.max_retry(  ) )
 
-A = P.start_step("a", 'fa')
 
-B = A.next_step("b", 'fbc').next_step("c", "fcf")
-#B.next_step("c", 'fbf')
+step_a = P.start_step("b", 'fb')
+step_a = P.start_step("a", 'fa').next("b", 'fbc').next("c", "fcf")
 
 def test():
     pass

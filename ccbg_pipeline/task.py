@@ -10,7 +10,6 @@ import pprint as pp
 DEBUG = 0
 
 
-
 class task_status( object ):
     FINISHED    =    1
     FAILED      =    2
@@ -73,13 +72,45 @@ class Step ( object ):
 
 
 
-    # Generic step adder, wrapped in the few functions below it
-    def add_step( self, ):
-    
-        return self.pipeline.add_stepp( self.name, name, function, cluster_param = None, step_type = None )
 
-    def next_step(self, name, function, cluster_param=None):
+    def __getitem__(self, item):
+        
+        if ( item.startswith("_")):
+            raise AttributeError
+
+        try:
+            return getattr(self, item)
+        except KeyError:
+            raise AttributeError
+
+
+    def __setitem__(self, item, value):
+
+        if ( item.startswith("_")):
+            raise AttributeError
+        
+        try:
+            return setattr(self, item, value)
+        except KeyError:
+            raise AttributeError
+
+
+
+    # Generic step adder, wrapped in the few functions below it
+    def add_step( self, ):  
+        return self.pipeline.add_stepp( self.name, function, name=None, cluster_param = None, step_type = None )
+
+    def next(self, function, name=None, cluster_param=None):
         return self.pipeline.add_step( self.name, name, function, cluster_param);
+
+    def merge(self, function, name=None, cluster_param=None):
+        return self.pipeline.add_step( self.name, name, function, cluster_param, step_type='sync');
+
+    def thread_merge(self, function, name=None, cluster_param=None):
+        return self.pipeline.add_step( self.name, function, name, cluster_param, step_type='thread_sync');
+
+    def __repr__(self):
+        return "{name}".format( name=self.name )
 
 
 
@@ -158,12 +189,20 @@ class Pipeline( object ):
     
     _analysis_order = {}
 
+    _step_dependencies = {}
+
     _cwd      = "./"
 
     _analysis = {}
     _flow     = {}
 
     _start_steps = []
+
+
+#    def __getitem__(self, item):
+
+#        if self.hasattr( item ):
+#            return self.item
 
     # This is mainly for writing nice error messages and to see in the
     # cluster software who is responsible for running things
@@ -217,24 +256,33 @@ class Pipeline( object ):
 
 
 
-    def start_step(self, name, function, cluster_params = None):
+    def start_step(self, function, name=None, cluster_params = None):
 
+
+        if name is None:
+            name = function.__name__
 
         start_step = Step( pipeline = self,
                            name = name, 
                            function = function)
+
         
         self._start_steps.append( start_step )
+
+        self._analysis[ name ] = start_step
         
         return start_step
 
 
     # Generic step adder, wrapped in the few functions below it
-    def add_step( self, prename, name, function, cluster_param = None, step_type = None):
+    def add_step( self, prev_step, function, name=None, cluster_param = None, step_type = None):
+
+        if name is None:
+            name = function.__name__
     
         if ( step_type is not None ):
             self._analysis[ name ][ step_type ] = 1
-            print("Step type: {}-{} type:{}".format(prename, name, step_type))
+            print("Step type: {}-{} type:{}".format(prev_step, name, step_type))
             pp.pprint ( self._analysis )
 
         step = Step( pipeline = self,
@@ -244,67 +292,63 @@ class Pipeline( object ):
 
         self._analysis[ name ] = step
 
+        if ( prev_step not in self._flow ):
+            self._flow[ prev_step ] = []
 
-
-        if ( prename not in self._flow ):
-            self._flow[ prename ] = []
-
-        self._flow[ prename ].append( name )
+        self._flow[ prev_step ].append( name )
 
         return step
 
 
-    def next_step(self, prename, name, function, cluster_param=None):
-        return self.add_step( prename, name, function, cluster_param);
+    # Simple wrapper functions for the add_step function above.
+    def next_step(self, prev_step, function, name=None, cluster_param=None):
+        return self.add_step( prev_step, name, function, cluster_param);
 
-    def global_merge_step(self, prename, name, function, cluster_param=None):
-        self.add_step( prename, name, function, cluster_param, 'sync');
+    def global_merge_step(self, prev_step, function, name=None, cluster_param=None):
+        self.add_step( prev_step, name, function, cluster_param, 'sync');
 
-
-    def thread_merge_step(self, pre_name, name, function, cluster_param=None):
-        self.add_step( prename, name, function, cluster_param, 'thread_sync');
-
+    def thread_merge_step(self, prev_step, function, name=None, cluster_param=None):
+        self.add_step( prev_step, name, function, cluster_param, 'thread_sync');
 
 
     def print_flow(self, starts = None ):
 
         pp.pprint( self._flow )
         pp.pprint( self._analysis )
-        exit()
 
         if ( starts is None ):
             starts  = self._start_steps
 
-        if ( len( starts ) == 0):
-            print( "No start steps defined")
+        if (  starts is None):
+            print( "No start step(s) defined")
             exit()
-
-
 
         analyses = []
 
         for start in starts:
-            set_analyse_dependency( start )
+            self.set_analysis_dependencies( start )
 
         logic_names = starts
+        
+        pp.pprint ( logic_names )
 
         print( "Starting with: {} \n".format( starts ))
         print( "--------------------------------------------------\n")
+        while logic_names:
 
-        while len( logic_names):
             current_logic_name = logic_names.pop()
-            print( "{} queue: [{}]".format( current_logic_name, logic_names))
+            print( "{} queue: [{}]".format( current_logic_name.name, logic_names))
   
-            self._analyses.push( current_logic_name )
+            analyses.append( current_logic_name )
 
-            if current_logic_name not in self._analysis:
+            if current_logic_name.name not in self._analysis:
                 print( "No information on {} in the analysis dict\n".format( current_logic_name ))
                 exit()
             else:
-                function = self._analysis[ current_logic_name ][ 'function' ]
+                function = self._analysis[ current_logic_name.name ][ 'function' ]
 
 
-            next_logic_names = next_analysis( current_logic_name )
+            next_logic_names = self.find_next_step( current_logic_name )
       
 
             if ( len(next_logic_names) ):
@@ -325,5 +369,55 @@ class Pipeline( object ):
                         logic_names.append( next_logic_name )
 
         print( "--------------------------------------------------\n")
+
+
+
+
+    def find_next_step(self, step_name ):
+  
+        res = []
+
+        if step_name not in self._flow:
+            return res        
+
+        next_step = self._flow[ step_name ]
+
+        if type( next_step ) is 'list':
+            res.append( set(next_step) )
+        else:
+            res.append( next_step )
+  
+        return res
+
+
+
+    def set_analysis_dependencies(self,  step_name ):
+
+
+        step_names = self.find_next_step( step_name )
+        
+        for next_step in step_names:
+            self._step_dependencies[next_step_name].append( step_name )
+            
+        while ( step_names ):
+            step_name = step_names.pop()
+            
+            next_step_names = self.find_next_step( step_name );
+
+            if ( not next_step_names ):
+                continue
+
+            if (  next_logic_names ):
+                step_names.append( next_step_names )
+
+            for next_step_name in next_step_names:
+                self._step_dependencies[ next_step_name].append( step_name )
+                    
+                if step_name in self._step_dependencies:
+                    self._step_dependencies[ next_step_name ].append( self._step_dependencies[ step_name ] )
+
+            # make sure a logic_name only occurs once.
+            #my %saw;
+            #@{$dependencies{ $next_logic_name }} = grep(!$saw{$_}++, @{$dependencies{ $next_logic_name }});
 
 
