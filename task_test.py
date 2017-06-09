@@ -32,8 +32,15 @@ def b():
 def c():
     print "C"
 
+def d():
+    print "C"
 
-step_a = P.start_step( a ).merge( b ).next( c )
 
+def e():
+    print "E"
+
+prelim_steps = P.start_step( a ).merge( b ).next( c )
+
+post_steps = P.add_step( b, d ).next( e )
 
 P.print_flow()

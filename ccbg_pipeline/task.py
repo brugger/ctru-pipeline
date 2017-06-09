@@ -143,6 +143,8 @@ class Step_manager( object ):
 
     _step_dependencies = {}
 
+    _analysis_order = {}
+
     def __repr__(self):
 
         res  = "\n\nTask manager dump::\n"
@@ -163,6 +165,9 @@ class Step_manager( object ):
 
         res += "dependencies:\n"
         res += pp.pformat(self._step_dependencies )+"\n"
+
+        res += "analysis-order:\n"
+        res += pp.pformat(self._analysis_order )+"\n"
 
         return res
 
@@ -198,7 +203,7 @@ class Step_manager( object ):
         return self._step_flow[ step ][:]
 
     def step_by_name( self, name):
-        if name not in self._rev_step:
+        if name not in self._step_index:
             return None
 
         return self._steps[ self._step_index[ name ]]
@@ -217,16 +222,47 @@ class Step_manager( object ):
         return res
 
 
+    def find_analysis_order( self, steps ):
+
+          
+        self._analysis_order[ steps[ 0 ] ] = 1;
+
+
+        while len(steps):
+            step = steps.pop()
+
+            next_steps = self.next_steps( step )
+            
+            if ( next_steps is None ):
+                break
+
+
+            for next_step in next_steps:
+                if (next_step not in self._analysis_order or 
+                    self._analysis_order[ next_step ] <= self._analysis_order[ step ] + 1):
+
+                    self._analysis_order[ next_step ] = self._analysis_order[ step ] + 1 
+
+            steps += self.next_steps( step )
+
+
+
+
     def print_flow(self, starts = None ):
 
+
+
         if starts is None:
-            
             starts = self._start_steps
         else:
             start = self.steps_by_name( starts )
 
         for start in starts:
             self.calc_analysis_dependencies( start )
+
+        self.find_analysis_order( starts )
+
+        print( self )
 
 
         print("")
@@ -367,16 +403,26 @@ class Pipeline( object ):
             raise AttributeError
 
 
+    def _function_to_name(self, func ):
+
+        if ( not callable( func )):
+            print( "{}:: parameter is not a function, it is a {}".format( '_function_to_name', type( func )))
+            exit()
+
+        if ( func.__module__ is None or func.__module__ == "__main__"):
+            name = "{}".format( func.__name__)
+        else:
+            name = "{}.{}".format( func.__module__, func.__name__)
+
+        return name
+
     def start_step(self, function, name=None, cluster_params = None):
 
         # If no name was provided use the name of the function
         # instead. If the function comes from a module add that to the
         # name as well
         if name is None:
-            if ( function.__module__ is None or function.__module__ == "__main__"):
-                name = "{}".format( function.__name__)
-            else:
-                name = "{}.{}".format( function.__module__, function.__name__)
+            name = self._function_to_name( function )
 
 
         start_step = Step( pipeline = self,
@@ -388,6 +434,7 @@ class Pipeline( object ):
         return start_step
 
 
+
     # Generic step adder, wrapped in the few functions below it
     def add_step( self, prev_step, function, name=None, cluster_param=None, step_type=None):
 
@@ -396,12 +443,19 @@ class Pipeline( object ):
         # instead. If the function comes from a module add that to the
         # name as well
         if name is None:
-            if ( function.__module__ is None or function.__module__ == "__main__"):
-                name = "{}".format( function.__name__)
-            else:
-                name = "{}.{}".format( function.__module__, function.__name__)
+            name = self._function_to_name( function )
+
+        print(" Prebv step type: {}".format( type(prev_step) ))
 
 
+        if (callable(prev_step)):
+            prev_step = self._function_to_name( prev_step  )
+
+        if (isinstance(prev_step, basestring)):
+            prev_step = self._step_manager.step_by_name( prev_step )
+
+
+        print(" Prebv step type: {}".format( type(prev_step) ))
 
         step = Step( pipeline = self,
                      name = name, 
