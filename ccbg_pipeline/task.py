@@ -10,6 +10,20 @@ import pprint as pp
 DEBUG = 0
 
 
+def _function_to_name( func ):
+
+    if ( not callable( func )):
+        print( "{}:: parameter is not a function, it is a {}".format( '_function_to_name', type( func )))
+        exit()
+
+    if ( func.__module__ is None or func.__module__ == "__main__"):
+        name = "{}".format( func.__name__)
+    else:
+        name = "{}.{}".format( func.__module__, func.__name__)
+
+    return name
+
+
 class Job_status( object ):
     FINISHED    =    1
     FAILED      =    2
@@ -209,21 +223,33 @@ class Step_manager( object ):
         return self._steps[ self._step_index[ name ]]
 
 
-    def steps_by_name( self, names=[]):
+    def steps_by_name( self, names=None):
 
         res = []
 
+        if names is None:
+            return res
+
         for name in names:
-            if name not in self._rev_step:
-                print( "Unknown step name: {}".format( name ))
+
+            if( callable( name )):
+                name = _function_to_name( name )
+                print( "Name is: {}".format( name ))
+                
+            if (isinstance(name, basestring) and name not in self._step_index):
+                print( "Unknown step name: {}".format( name ))               
+                exit()
             else:
-                res.append( _steps[ self._step_index[ name ]] )
+                print( "Name is: {}".format( name ))
+                print (self._steps[ self._step_index[ name ]])
+                res.append( self._steps[ self._step_index[ name ]] )
 
         return res
 
 
     def find_analysis_order( self, steps ):
 
+        steps = steps[:]
           
         self._analysis_order[ steps[ 0 ] ] = 1;
 
@@ -247,15 +273,41 @@ class Step_manager( object ):
 
 
 
+    def waiting_for_analysis(self, step, steps_done):
+
+        dependencies = self.get_step_dependencies( step )
+             
+        if dependencies is None:
+            return 0
+
+        pp.pprint( dependencies )
+
+        done = {}
+        for step_done in steps_done:
+            done[ step_done ] = 1
+
+        for dependency in dependencies:
+            if dependency not in done:
+                print("{} is waiting for {}".format(step, dependency));
+                return 1
+
+        return 0
+
+
 
     def print_flow(self, starts = None ):
 
+        pp.pprint(self)
 
+        pp.pprint( starts )
 
         if starts is None:
             starts = self._start_steps
         else:
-            start = self.steps_by_name( starts )
+            starts = self.steps_by_name( starts )
+
+            
+        pp.pprint( starts )
 
         for start in starts:
             self.calc_analysis_dependencies( start )
@@ -269,11 +321,16 @@ class Step_manager( object ):
         print( "Starting with: {} ".format( starts ))
         print( "--------------------------------------------------\n")
 
-        steps = starts
+        steps = starts[:]
+        
+        steps_done = []
         
         while steps:
             step = steps.pop()
             next_steps = self.next_steps( step )
+
+            steps_done.append( step )
+
 
             print( "{} queue: {}".format( step.name, next_steps))
   
@@ -286,7 +343,10 @@ class Step_manager( object ):
                         print( "{} --> {} {}\n".format( step.name, next_step.name, step.step_type))
 
 
-                steps += next_steps
+                    if ( self.waiting_for_analysis(next_step, steps_done)):
+                        pass
+                    else:
+                        steps += next_steps
 
         print( "--------------------------------------------------\n")
 
@@ -403,18 +463,6 @@ class Pipeline( object ):
             raise AttributeError
 
 
-    def _function_to_name(self, func ):
-
-        if ( not callable( func )):
-            print( "{}:: parameter is not a function, it is a {}".format( '_function_to_name', type( func )))
-            exit()
-
-        if ( func.__module__ is None or func.__module__ == "__main__"):
-            name = "{}".format( func.__name__)
-        else:
-            name = "{}.{}".format( func.__module__, func.__name__)
-
-        return name
 
     def start_step(self, function, name=None, cluster_params = None):
 
@@ -422,7 +470,7 @@ class Pipeline( object ):
         # instead. If the function comes from a module add that to the
         # name as well
         if name is None:
-            name = self._function_to_name( function )
+            name = _function_to_name( function )
 
 
         start_step = Step( pipeline = self,
@@ -443,13 +491,13 @@ class Pipeline( object ):
         # instead. If the function comes from a module add that to the
         # name as well
         if name is None:
-            name = self._function_to_name( function )
+            name = _function_to_name( function )
 
         print(" Prebv step type: {}".format( type(prev_step) ))
 
 
         if (callable(prev_step)):
-            prev_step = self._function_to_name( prev_step  )
+            prev_step = _function_to_name( prev_step  )
 
         if (isinstance(prev_step, basestring)):
             prev_step = self._step_manager.step_by_name( prev_step )
@@ -480,8 +528,8 @@ class Pipeline( object ):
         self.add_step( prev_step, function, name, cluster_param, 'thread_sync');
 
 
-    def print_flow(self):
-        self._step_manager.print_flow()
+    def print_flow(self, starts=None):
+        self._step_manager.print_flow( starts )
 
 
 
