@@ -84,7 +84,16 @@ class Job_list( object ):
 
 
 
-    def next_task_id():
+    def next_id():
+	'''
+	
+        Gets the next job id from the class
+
+	Args:
+
+	:Returns:
+
+	'''
         task_id += 1
 
         return task_id
@@ -133,9 +142,6 @@ class Step ( object ):
     def __str__(self):
         return "{name}".format( name=self.name )
 
-    # Generic step adder, wrapped by the functions below it
-    def add_step( self, function, name=None, cparams = None, step_type = None  ):  
-        return self.pipeline.add_step( self, function, name, cparams , step_type )
 
     def next(self, function, name=None, cparams=None):
         return self.pipeline.add_step( self, function, name, cparams);
@@ -187,6 +193,7 @@ class Step_manager( object ):
 
     # basic household functions
     def add(self, step ):
+        
         self._steps.append( step )
         self._step_index[ step.name ] = len(self._steps) - 1
 
@@ -537,7 +544,170 @@ class Pipeline( object ):
 
 
 
+    def run(self, starts=None):
 
+        
+        if starts is None:
+            starts = self._start_steps
+        else:
+            starts = self.steps_by_name( starts )
+
+            
+        self._task_manager.validate_flow( starts )
+
+
+        for start in starts:
+            self._task_manager.calc_analysis_dependencies( start )
+
+        self.find_analysis_order( starts )
+
+
+        while ( True ):
+
+
+            (started, queued, running ) = (0,0,0)
+
+            active_jobs = self._job_manager.fetch_active_jobs();
+            if ( len(active_jobs) == 0 and  not self._restarted_run ):
+
+                for start in starts:
+                    self._run_analysis( start );
+                    queued += 1
+                continue
+            
+            
+            for active_job in active_jobs:
+                # The job is no longer being tracked either due to crashing or finishing.
+                if ( not active_job.tracking ):
+                    continue
+                
+
+                step_name = active_job.step
+                tread_id  = active_job.thread_id
+
+                if ( active_job.status = Job_status.FINISHED ):
+                    active_job.tracking = 0
+                    next_steps = self._step_manager.next( step_name )
+
+                    if ( next_steps is None or len(next_steps) == 0):
+                        continue
+
+                    for next_step in next_steps:
+                        if ( next_step.sync == 'sync' or next_step.sync == 't_sync'):
+                            if ( next_step.sync == 'sync'):
+                            active_thread_id = 0
+
+                            if ( self._thread_manager.no_restart( active_thread )):
+                                continue
+
+                            if ( retained_jobs > 0 ):
+                                continue
+
+                            if ( self._task_manager.depends_on_active_jobs( next_step )):
+                                 continue
+
+                             depends_on = []
+                             for step in self._task_manager.flow.keys():
+                                 for analysis in self._task_manager( flow( step )):
+                                     depends_on.append( analysis )
+                                
+
+                            depends_jobs = fetch_jobs( depends_on )
+                            all_treads_done = 0
+                            for job ( depnds_jobs ):
+                                if ( job.status != Job_status.FINISHED ):
+                                    all_threads_done = 0
+                                    break
+                                
+                                     # active_thread_id aware...
+
+                            if ( all_threads_done ):
+
+                                inputs  = []
+                                job_ids = []
+                                
+                                for job in depnds_jobs:
+                                    job.tracking = 0
+                                    inputs.append( job.output )
+                                    job_ids.append( jobs )
+		
+		
+
+                            self.run_analysis( next_step, job_ids, inputs);
+                            started += 1
+                            
+                        else:
+                            run_analysis( $next_step, job, job.output)
+                            started += 1
+                elif (job.status == Job_status.FAILED or job.status == Job_status.KILLED):
+                    job.tracking = 0
+                elif ( job.status = Job_status.RUNNING):
+                    queued += 1
+                    running += 1
+                else:
+                    queued += 1
+
+                    
+
+    while ( self.max_jobs > 0 and self._job_submitted < self.max_jobs && len( self.retained_jobs )):
+
+        params = retained_jobs.pop()
+        started += 1
+
+
+    check_n_store_state()
+    print report()
+    
+#    system('clear');
+#    print report_spinner();
+#    report2tracker() if ($database_tracking);
+
+    if ( len( queued ) == 0 and started == 0 and len( retained_jobs ) == 0):
+        last
+
+
+
+    last if ( ! $queued && ! $started && !@retained_jobs);
+
+    if ( running == 0 and self.sleep_time < self.max_sleep_time):
+        self.sleep_time += self.sleep_increase
+
+    if ( running != 0 ):
+        self.sleep_time = self._sleep_start
+    
+
+
+        
+    sleep ( $sleep_time )
+    check_jobs()
+
+  print report()
+#  report2tracker() if ($database_tracking);
+  print total_runtime()
+  print real_runtime()
+
+  if ( no_restart ) {
+    print("The pipeline was unsucessful with $no_restart job(s) not being able to finish\n");
+  }
+  
+
+  if ( len(retained_jobs) > 0):
+      print("Retaineded jobs: ". @retained_jobs . " (should be 0)\n") if ( @retained_jobs != 0);
+#  $end_time = Time::HiRes::gettimeofday();
+#  self.store_state();
+
+  # $logger->debug( { 'type'     => "pipeline_stats",
+  # 		   'program'  => $0,
+  # 		   'pid'      => $$,
+  # 		   'status'   => "FINISHED",
+  # 		   'runtime'  => $end_time - $start_time });
+
+
+  return no_restart
+
+
+
+        
 
 class thread( object) :
     pass
