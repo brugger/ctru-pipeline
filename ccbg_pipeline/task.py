@@ -4,8 +4,10 @@
 ##
 
 from __future__ import print_function, unicode_literals
+import inspect
 
 import pprint as pp
+import time
 
 DEBUG = 0
 
@@ -46,6 +48,7 @@ class Job(object):
     step_name    = None
     pre_task_ids = None
     delete_file  = None
+    job_id       = None
     thread_id    = None
     cmd          = None
 
@@ -64,23 +67,59 @@ class Job(object):
             self.thread_id = thread_id
 
 
-    def set_status( self, status=None ):
-        if ( status is not None ):
-            self.status = status
+    def __getitem__(self, item):
+        
+        if ( item.startswith("_")):
+            raise AttributeError
+
+        try:
+            return getattr(self, item)
+        except KeyError:
+            raise AttributeError
+
+    def __setitem__(self, item, value):
+
+        if ( item.startswith("_")):
+            raise AttributeError
+        
+        try:
+            return setattr(self, item, value)
+        except KeyError:
+            raise AttributeError
+
+    def __repr__(self):
+        return "{name}".format( name=self.step_name )
+
+    def __str__(self):
+        return "{name}".format( name=self.step_name )
 
 
-class Job_list( object ):
+class Job_manager( object ):
 
-    # Overall task list
-    tasks = {}
+    _jobs = []
+    _job_index  = {}
 
-    # tasks that have not yet been submitted to the queue/system
-    task_list = []
 
-    task_id = 1
+    job_id = 1
 
     def __init__(self, ):
         pass
+
+
+    def add( self, job ):
+        self._jobs.append( job )
+        self._job_index[ job.id ] = len(self._jobs) - 1
+
+
+
+    def active_jobs(self):
+        
+        active_jobs = []
+        for job in self._jobs:
+            if job.tracking:
+                active_jobs.append( job )
+
+        return active_jobs
 
 
 
@@ -94,9 +133,85 @@ class Job_list( object ):
 	:Returns:
 
 	'''
-        task_id += 1
+        job_id += 1
 
-        return task_id
+        return job_id
+
+
+
+class Thread( object):
+    name   = None
+    id     = None
+
+    def __init__(  self, name, id ):
+         self.name = name
+         self.thread_id = id
+        
+
+    def __getitem__(self, item):
+        
+        if ( item.startswith("_")):
+            raise AttributeError
+
+        try:
+            return getattr(self, item)
+        except KeyError:
+            raise AttributeError
+
+    def __setitem__(self, item, value):
+
+        if ( item.startswith("_")):
+            raise AttributeError
+        
+        try:
+            return setattr(self, item, value)
+        except KeyError:
+            raise AttributeError
+
+
+class Thread_manager( object ):
+    
+    _threads       = []
+    _thread_index  = {}
+
+    thread_id = 1
+
+    def __init__(self, ):
+        pass
+
+
+    def add( self, thread ):
+        self._threads.append( thread )
+        # Should really check if these were used before
+        self._thread_index[ thread.id ] = len(self._jobs) - 1
+        self._thread_index[ thread.name ] = len(self._jobs) - 1
+
+
+
+    def active_threads(self):
+        
+        active_threads = []
+        for thread in self._threads:
+            if thread.tracking:
+                active_jobs.append( job )
+
+        return active_jobs
+
+
+
+    def next_id():
+	'''
+	
+        Gets the next thread id from the class
+
+	Args:
+
+	:Returns:
+
+	'''
+        thread_id += 1
+
+        return thread_id
 
 
 
@@ -167,7 +282,7 @@ class Step_manager( object ):
 
     def __repr__(self):
 
-        res  = "\n\nTask manager dump::\n"
+        res  = "\n\nStep manager dump::\n"
         res += "-----------------------\n\n"
 
         res += "Start steps:\n"
@@ -191,6 +306,10 @@ class Step_manager( object ):
 
         return res
 
+    def start_steps(self):
+        return self._start_steps[:]
+
+
     # basic household functions
     def add(self, step ):
         
@@ -211,8 +330,8 @@ class Step_manager( object ):
 
 #        print ("Nxt step for: ", type(step), step )
 
-        if type( step ) is 'str':
-            step = self._step_index( step )
+        if (isinstance(step, basestring)):
+            step = self._step_index[ step ]
 
         if step not in self._step_flow:
             return None
@@ -232,6 +351,8 @@ class Step_manager( object ):
 
     def steps_by_name( self, names=None):
 
+
+        pp.pprint( self )
         res = []
 
         if names is None:
@@ -241,20 +362,23 @@ class Step_manager( object ):
 
             if( callable( name )):
                 name = _function_to_name( name )
-                print( "Name is: {}".format( name ))
-                
+                print( "Object is: {}".format( name ))
+
+
             if (isinstance(name, basestring) and name not in self._step_index):
                 print( "Unknown step name: {}".format( name ))               
                 exit()
             else:
-                print( "Name is: {}".format( name ))
-                print (self._steps[ self._step_index[ name ]])
-                res.append( self._steps[ self._step_index[ name ]] )
+                print("{}".format( self._step_index[ 'a' ]))
+
+                res.append( self._steps[ self._step_index[ str(name) ]] )
 
         return res
 
 
     def find_analysis_order( self, steps ):
+
+        pp.pprint( steps )
 
         steps = steps[:]
           
@@ -358,6 +482,40 @@ class Step_manager( object ):
         print( "--------------------------------------------------\n")
 
 
+    def validate_flow(self, starts ):
+
+        if starts is None:
+            starts = self._start_steps
+        else:
+            starts = self.steps_by_name( starts )
+        
+        for start in starts:
+            self.calc_analysis_dependencies( start )
+
+        steps = starts[:]
+        
+        steps_done = []
+        
+        while steps:
+            step = steps.pop()
+            next_steps = self.next_steps( step )
+
+            steps_done.append( step )
+
+
+            print( "{} queue: {}".format( step.name, next_steps))
+  
+            if next_steps is not None:
+                for next_step in next_steps:
+
+                    if ( self.waiting_for_analysis(next_step, steps_done)):
+                        pass
+                    else:
+                        steps += next_steps
+
+
+        print( "run flow validated")
+
     def set_step_dependency(self, step, dependency):
 
         if step not in self._step_dependencies:
@@ -416,7 +574,7 @@ class Pipeline( object ):
     save_interval  = 300
 
     max_retry      =   3
-    _failed_tasks   =   0 # failed jobs that cannot be restarted. 
+    _failed_steps  =   0 # failed jobs that cannot be restarted. 
 
     sleep_time     =   30
     max_sleep_time =  300
@@ -437,15 +595,11 @@ class Pipeline( object ):
     
     _delete_files = []
     
-    _analysis_order = {}
-
-    _step_dependencies = {}
-
-    _cwd      = "./"
+    _cwd      = "./" #os.cwd()?
 
     _step_manager = Step_manager()
+    _job_manager = Job_manager()
 
-    _start_steps = []
 
 
     def __getitem__(self, item):
@@ -500,7 +654,7 @@ class Pipeline( object ):
         if name is None:
             name = _function_to_name( function )
 
-        print(" Prebv step type: {}".format( type(prev_step) ))
+        print(" Prev step type: {}".format( type(prev_step) ))
 
 
         if (callable(prev_step)):
@@ -510,7 +664,7 @@ class Pipeline( object ):
             prev_step = self._step_manager.step_by_name( prev_step )
 
 
-        print(" Prebv step type: {}".format( type(prev_step) ))
+        print(" Prev step type: {}".format( type(prev_step) ))
 
         step = Step( pipeline = self,
                      name = name, 
@@ -539,45 +693,66 @@ class Pipeline( object ):
         self._step_manager.print_flow( starts )
 
 
-
-
-
-
-
     def run(self, starts=None):
 
+        pp.pprint( starts)
+
         
+        # If no specific start point is provided use what was used when the pipeline was defined.
+        # The program expects these as steps  so translate the step names to step objects
         if starts is None:
-            starts = self._start_steps
+            starts = self._step_manager.start_steps()
         else:
             starts = self.steps_by_name( starts )
 
+
+
+
+        pp.pprint( starts )
             
-        self._task_manager.validate_flow( starts )
+        # Just to make sure that the script is setup as it should be
+        # the overhead of doing this is close to null, and it saves 
+        # time if things does not crash.
+        self._step_manager.validate_flow( starts )
 
 
+
+#        pp.pprint( self._step_manager )
+
+        # Calculate the step dependencies for each start step so we
+        # later on can wait for steps when encountering a sync step
         for start in starts:
-            self._task_manager.calc_analysis_dependencies( start )
+            self._step_manager.calc_analysis_dependencies( start )
 
-        self.find_analysis_order( starts )
+        # And the order steps should be analysed in
+        self._step_manager.find_analysis_order( starts )
 
 
         while ( True ):
 
+            print( "Running the pipeline loop")
 
+            # to check what the number of job statuses have changed 
+            # Mainly used for increasing the sleep time if needed.
             (started, queued, running ) = (0,0,0)
+            
+            
+            # Fetch all the active jobs from the job_manager
+            active_jobs = self._job_manager.active_jobs();
 
-            active_jobs = self._job_manager.fetch_active_jobs();
-            if ( len(active_jobs) == 0 and  not self._restarted_run ):
+
+            # if this is a fresh start the active_jobs will be empty,
+            # so start all the start steps, and loop around again
+            if ( active_jobs == [] and not self._restarted_run ):
 
                 for start in starts:
-                    self._run_analysis( start );
+#                    self._run_analysis( start );
                     queued += 1
                 continue
             
-            
             for active_job in active_jobs:
                 # The job is no longer being tracked either due to crashing or finishing.
+                # This should not happen as we are looping through the active jobs only.
                 if ( not active_job.tracking ):
                     continue
                 
@@ -585,19 +760,24 @@ class Pipeline( object ):
                 step_name = active_job.step
                 tread_id  = active_job.thread_id
 
-                if ( active_job.status = Job_status.FINISHED ):
+                if ( active_job.status == Job_status.FINISHED ):
+                    # disable tracking of the job
                     active_job.tracking = 0
+                    # fetch the steps that depended on this step
                     next_steps = self._step_manager.next( step_name )
 
+                    # If none, go to the next actibe job
                     if ( next_steps is None or len(next_steps) == 0):
                         continue
 
+                    # Looping though the step dependencies
                     for next_step in next_steps:
+                        # if the next steps is a sync or thread-sync
                         if ( next_step.sync == 'sync' or next_step.sync == 't_sync'):
                             if ( next_step.sync == 'sync'):
-                            active_thread_id = 0
+                                thread_id = 0
 
-                            if ( self._thread_manager.no_restart( active_thread )):
+                            if ( self._thread_manager.no_restart( thread_id )):
                                 continue
 
                             if ( retained_jobs > 0 ):
@@ -606,15 +786,16 @@ class Pipeline( object ):
                             if ( self._task_manager.depends_on_active_jobs( next_step )):
                                  continue
 
-                             depends_on = []
-                             for step in self._task_manager.flow.keys():
-                                 for analysis in self._task_manager( flow( step )):
-                                     depends_on.append( analysis )
+                            depends_on = []
+                            for step in self._task_manager.flow.keys():
+                                for analysis in self._task_manager.flow( step ):
+                                    depends_on.append( analysis )
                                 
 
                             depends_jobs = fetch_jobs( depends_on )
                             all_treads_done = 0
-                            for job ( depnds_jobs ):
+
+                            for job in  depends_jobs :
                                 if ( job.status != Job_status.FINISHED ):
                                     all_threads_done = 0
                                     break
@@ -626,7 +807,7 @@ class Pipeline( object ):
                                 inputs  = []
                                 job_ids = []
                                 
-                                for job in depnds_jobs:
+                                for job in depends_jobs:
                                     job.tracking = 0
                                     inputs.append( job.output )
                                     job_ids.append( jobs )
@@ -636,12 +817,13 @@ class Pipeline( object ):
                             self.run_analysis( next_step, job_ids, inputs);
                             started += 1
                             
-                        else:
-                            run_analysis( $next_step, job, job.output)
+                    else:
+                            run_analysis( next_step, job, job.output)
                             started += 1
+
                 elif (job.status == Job_status.FAILED or job.status == Job_status.KILLED):
                     job.tracking = 0
-                elif ( job.status = Job_status.RUNNING):
+                elif ( job.status == Job_status.RUNNING):
                     queued += 1
                     running += 1
                 else:
@@ -649,50 +831,50 @@ class Pipeline( object ):
 
                     
 
-    while ( self.max_jobs > 0 and self._job_submitted < self.max_jobs && len( self.retained_jobs )):
+            while ( self.max_jobs > 0 and self._job_submitted < self.max_jobs and len( self.retained_jobs )):
 
-        params = retained_jobs.pop()
-        started += 1
+                params = retained_jobs.pop()
+                started += 1
 
-
-    check_n_store_state()
-    print report()
+                
+                check_n_store_state()
+    #    print self.report()
     
 #    system('clear');
 #    print report_spinner();
 #    report2tracker() if ($database_tracking);
+                    
+            if ( len( queued ) == 0 and started == 0 and len( retained_jobs ) == 0):
+                last
 
-    if ( len( queued ) == 0 and started == 0 and len( retained_jobs ) == 0):
-        last
 
 
+            if ( not queued and not started and len(retained_jobs) == 0):
+                last# break
 
-    last if ( ! $queued && ! $started && !@retained_jobs);
 
-    if ( running == 0 and self.sleep_time < self.max_sleep_time):
-        self.sleep_time += self.sleep_increase
+            if ( running == 0 and self.sleep_time < self.max_sleep_time):
+                self.sleep_time += self.sleep_increase
 
-    if ( running != 0 ):
-        self.sleep_time = self._sleep_start
+            if ( running != 0 ):
+                self.sleep_time = self._sleep_start
     
 
+            time.sleep ( self.sleep_time )
+            self._job_manager.check_jobs()
 
+#  print report()
+#  report2tracker() if ($database_tracking)
+        print( self.total_runtime())
+        print( self.real_runtime())
+
+        if ( no_restart ):
+            print("The pipeline was unsucessful with $no_restart job(s) not being able to finish\n")
         
-    sleep ( $sleep_time )
-    check_jobs()
-
-  print report()
-#  report2tracker() if ($database_tracking);
-  print total_runtime()
-  print real_runtime()
-
-  if ( no_restart ) {
-    print("The pipeline was unsucessful with $no_restart job(s) not being able to finish\n");
-  }
   
 
-  if ( len(retained_jobs) > 0):
-      print("Retaineded jobs: ". @retained_jobs . " (should be 0)\n") if ( @retained_jobs != 0);
+        if ( len(retained_jobs) > 0):
+            print("Retaineded jobs: " +  retained_jobs +  " (should be 0)\n")
 #  $end_time = Time::HiRes::gettimeofday();
 #  self.store_state();
 
@@ -703,7 +885,7 @@ class Pipeline( object ):
   # 		   'runtime'  => $end_time - $start_time });
 
 
-  return no_restart
+        return no_restart
 
 
 

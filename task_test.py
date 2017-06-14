@@ -43,5 +43,7 @@ prelim_steps = P.start_step( a ).merge( b ).next( c )
 
 post_steps = P.add_step( b, d ).next( e )
 
-P.print_flow( )
-P.print_flow([ a ] )
+#P.print_flow( )
+#P.print_flow([ a ] )
+
+P.run()
